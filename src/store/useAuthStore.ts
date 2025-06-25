@@ -1,0 +1,115 @@
+import { create } from 'zustand';
+import { 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  updateProfile,
+  User
+} from 'firebase/auth';
+import { auth, db } from '../config/firebase';
+import { setDoc, doc, getDocs, collection } from 'firebase/firestore';
+import { useJournalStore } from './useJournalStore';
+
+interface AuthState {
+  user: User | null;
+  isLoading: boolean;
+  error: string | null;
+  isAuthenticated: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  clearError: () => void;
+  initialize: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  isLoading: true,
+  error: null,
+  isAuthenticated: false,
+
+  signIn: async (email: string, password: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // Do not set user/isAuthenticated here; let onAuthStateChanged handle it
+    } catch (error: any) {
+      set({ 
+        error: error.message || 'Failed to sign in', 
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
+
+  signUp: async (email: string, password: string, displayName: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      if (result.user) {
+        await updateProfile(result.user, { displayName });
+        // Add user to Firestore 'users' collection
+        await setDoc(doc(db, 'users', result.user.uid), {
+          uid: result.user.uid,
+          email: result.user.email,
+          displayName: displayName
+        });
+      }
+      // Do not set user/isAuthenticated here; let onAuthStateChanged handle it
+    } catch (error: any) {
+      set({ 
+        error: error.message || 'Failed to create account', 
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
+
+  signOut: async () => {
+    set({ isLoading: true });
+    try {
+      await signOut(auth);
+      useJournalStore.getState().clearEntries();
+      // Do not set user/isAuthenticated here; let onAuthStateChanged handle it
+    } catch (error: any) {
+      set({ 
+        error: error.message || 'Failed to sign out', 
+        isLoading: false 
+      });
+    }
+  },
+
+  resetPassword: async (email: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await sendPasswordResetEmail(auth, email);
+      set({ isLoading: false });
+    } catch (error: any) {
+      set({ 
+        error: error.message || 'Failed to send reset email', 
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
+
+  clearError: () => set({ error: null }),
+
+  initialize: () => {
+    onAuthStateChanged(auth, (user) => {
+      set({
+        user,
+        isAuthenticated: !!user,
+        isLoading: false
+      });
+    });
+  }
+}));
+
+export const fetchAllUsers = async () => {
+  const usersSnapshot = await getDocs(collection(db, 'users'));
+  return usersSnapshot.docs.map(doc => doc.data());
+};
