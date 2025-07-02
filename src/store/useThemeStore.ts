@@ -26,6 +26,8 @@ interface ThemeState {
     card: string;
     font: string;
   };
+  customJournalWallpaper: string | null;
+  setCustomJournalWallpaper: (wallpaper: string | null) => void;
 }
 
 const themes: Record<ThemeType, ThemeColors> = {
@@ -88,8 +90,9 @@ const themes: Record<ThemeType, ThemeColors> = {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
-      currentTheme: 'sunset',
+      currentTheme: 'midnight',
       customWallpaper: null,
+      customJournalWallpaper: null,
 
       setTheme: (theme: ThemeType) => {
         set({ currentTheme: theme });
@@ -97,6 +100,10 @@ export const useThemeStore = create<ThemeState>()(
 
       setCustomWallpaper: (wallpaper: string | null) => {
         set({ customWallpaper: wallpaper });
+      },
+
+      setCustomJournalWallpaper: (wallpaper: string | null) => {
+        set({ customJournalWallpaper: wallpaper });
       },
 
       getThemeColors: () => {

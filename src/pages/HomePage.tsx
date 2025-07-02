@@ -39,6 +39,8 @@ const HomePage: React.FC = () => {
     setTheme, 
     customWallpaper, 
     setCustomWallpaper,
+    customJournalWallpaper,
+    setCustomJournalWallpaper,
     getThemeColors 
   } = useThemeStore();
   
@@ -77,6 +79,17 @@ const HomePage: React.FC = () => {
       const reader = new FileReader();
       reader.onload = (e) => {
         setCustomWallpaper(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const handleJournalWallpaperUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setCustomJournalWallpaper(e.target?.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -366,6 +379,40 @@ const HomePage: React.FC = () => {
                     size="sm"
                   >
                     Remove Wallpaper
+                  </Button>
+                </div>
+              )}
+            </GlassCard>
+            {/* Journal Wallpaper Section */}
+            <GlassCard className="p-6">
+              <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
+                <Upload size={20} className="mr-2" />
+                Journal Wallpaper
+              </h4>
+              <div className="flex items-center space-x-4">
+                <label className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleJournalWallpaperUpload}
+                    className="hidden"
+                  />
+                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-slate-400 transition-colors cursor-pointer">
+                    <Upload size={24} className="mx-auto mb-2 text-slate-900" />
+                    <p className="text-sm text-slate-900">
+                      Click to upload a journal background image
+                    </p>
+                  </div>
+                </label>
+              </div>
+              {customJournalWallpaper && (
+                <div className="mt-4">
+                  <Button
+                    onClick={() => setCustomJournalWallpaper(null)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Remove Journal Wallpaper
                   </Button>
                 </div>
               )}

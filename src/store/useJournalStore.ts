@@ -9,7 +9,11 @@ import {
   query, 
   where, 
   orderBy,
-  Timestamp 
+  Timestamp,
+  setDoc,
+  getDoc,
+  deleteDoc as deleteFirestoreDoc,
+  doc as firestoreDoc
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -25,6 +29,8 @@ export interface JournalEntry {
   attachments: string[];
   mood?: string;
   weather?: string;
+  mediaElements?: any[];
+  stickies?: any[];
 }
 
 interface JournalState {
@@ -49,7 +55,12 @@ interface JournalState {
   clearEntries: () => void;
 }
 
-export const useJournalStore = create<JournalState>((set, get) => ({
+export const useJournalStore = create<JournalState & {
+  saveDraft: (userId: string, draftId: string, data: any) => Promise<void>;
+  loadDraft: (userId: string, draftId: string) => Promise<any | null>;
+  deleteDraft: (userId: string, draftId: string) => Promise<void>;
+}>(
+  (set, get) => ({
   entries: [],
   currentEntry: null,
   isLoading: false,
@@ -74,6 +85,8 @@ export const useJournalStore = create<JournalState>((set, get) => ({
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         console.log('[NISHI DEBUG] Entry doc:', doc.id, data);
+        console.log('[NISHI DEBUG] Media elements in doc:', data.mediaElements);
+        console.log('[NISHI DEBUG] Stickies in doc:', data.stickies);
         entries.push({
           id: doc.id,
           ...data,
@@ -106,8 +119,12 @@ export const useJournalStore = create<JournalState>((set, get) => ({
         tags: entryData.tags || [],
         attachments: entryData.attachments || [],
         mood: entryData.mood,
-        weather: entryData.weather
+        weather: entryData.weather,
+        mediaElements: entryData.mediaElements || [],
+        stickies: entryData.stickies || []
       };
+      
+      console.log('[NISHI DEBUG] Creating entry with data:', entry);
       
       if (userId === 'demo-user') {
         const newEntry: JournalEntry = {
@@ -258,5 +275,25 @@ export const useJournalStore = create<JournalState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  clearEntries: () => set({ entries: [] })
+  clearEntries: () => set({ entries: [] }),
+
+  saveDraft: async (userId: string, draftId: string, data: any) => {
+    if (!userId || !draftId) return;
+    const ref = firestoreDoc(db, 'drafts', `${userId}-${draftId}`);
+    await setDoc(ref, { ...data, userId, draftId, updatedAt: new Date() });
+  },
+
+  loadDraft: async (userId: string, draftId: string) => {
+    if (!userId || !draftId) return null;
+    const ref = firestoreDoc(db, 'drafts', `${userId}-${draftId}`);
+    const snap = await getDoc(ref);
+    if (snap.exists()) return snap.data();
+    return null;
+  },
+
+  deleteDraft: async (userId: string, draftId: string) => {
+    if (!userId || !draftId) return;
+    const ref = firestoreDoc(db, 'drafts', `${userId}-${draftId}`);
+    await deleteFirestoreDoc(ref);
+  }
 }));

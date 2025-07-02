@@ -7,9 +7,9 @@ import { ArrowLeft } from 'lucide-react';
 import { useThemeStore } from '../store/useThemeStore';
 import GlassCard from '../components/ui/GlassCard';
 
-const DEFAULT_BG = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80';
+const DEFAULT_BG = '/assets/pixel-sunset.gif';
 
-const LoginForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: string | null; signIn: (email: string, password: string) => Promise<void>; }> = ({ onSwitch, isLoading, error, signIn }) => {
+const LoginForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: string | null; signIn: (email: string, password: string) => Promise<void>; navigateBack: () => void }> = ({ onSwitch, isLoading, error, signIn, navigateBack }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -19,7 +19,16 @@ const LoginForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: str
   };
 
   return (
-    <GlassCard className="max-w-md w-full space-y-8 text-text">
+    <GlassCard className="max-w-md w-full space-y-5 text-text">
+      <Button
+        onClick={navigateBack}
+        variant="ghost"
+        size="sm"
+        className="p-2 mb-2 self-start"
+      >
+        <ArrowLeft size={16} className="mr-2" />
+        Back
+      </Button>
       <div>
         <h2 className="mt-6 text-center text-3xl font-extrabold">Sign In</h2>
         <p className="mt-2 text-center text-sm text-textSecondary">
@@ -78,7 +87,7 @@ const LoginForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: str
   );
 };
 
-const SignupForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: string | null; signUp: (email: string, password: string, displayName: string) => Promise<void>; }> = ({ onSwitch, isLoading, error, signUp }) => {
+const SignupForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: string | null; signUp: (email: string, password: string, displayName: string) => Promise<void>; navigateBack: () => void }> = ({ onSwitch, isLoading, error, signUp, navigateBack }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -90,6 +99,15 @@ const SignupForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: st
 
   return (
     <GlassCard className="max-w-md w-full space-y-8 text-text">
+      <Button
+        onClick={navigateBack}
+        variant="ghost"
+        size="sm"
+        className="p-2 mb-2 self-start"
+      >
+        <ArrowLeft size={16} className="mr-2" />
+        Back
+      </Button>
       <div>
         <h2 className="mt-6 text-center text-3xl font-extrabold">Sign Up</h2>
         <p className="mt-2 text-center text-sm text-textSecondary">
@@ -222,21 +240,13 @@ const AuthPage: React.FC = () => {
         </div>
       )}
       <div className="relative z-20 w-full max-w-md flex flex-col items-center">
-        <Button
-          onClick={() => navigate('/')} 
-          variant="ghost"
-          size="sm"
-          className="p-2 mb-4 self-start"
-        >
-          <ArrowLeft size={16} className="mr-2" />
-          Back to Home
-        </Button>
         {isLogin ? (
           <LoginForm
             onSwitch={() => setIsLogin(false)}
             isLoading={isLoading}
             error={error}
             signIn={signIn}
+            navigateBack={() => navigate('/')}
           />
         ) : (
           <SignupForm
@@ -244,6 +254,7 @@ const AuthPage: React.FC = () => {
             isLoading={isLoading}
             error={error}
             signUp={signUp}
+            navigateBack={() => navigate('/')}
           />
         )}
       </div>
