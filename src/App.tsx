@@ -51,6 +51,10 @@ function App() {
           path="/journal" 
           element={isAuthenticated ? <JournalPage /> : <Navigate to="/auth" />} 
         />
+        <Route 
+          path="/time-capsules" 
+          element={isAuthenticated ? <TimeCapsuleListPage /> : <Navigate to="/auth" />} 
+        />
         
         {/* Catch all - redirect to landing */}
         <Route path="*" element={<Navigate to="/" />} />
