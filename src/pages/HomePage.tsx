@@ -66,19 +66,19 @@ const HomePage: React.FC = () => {
   // Preset HomePage backgrounds (GIFs) - use local assets
   const HOMEPAGE_BACKGROUNDS = [
     {
-      url: '/assets/HBG1.gif',
+     url: '/assets/HBG1.gif',
       type: 'gif',
-      label: 'Pixel Sunset (Default)'
+      label: 'Valley Sunset (Default)'
     },
     {
       url: '/assets/HBG2.gif',
       type: 'gif',
-      label: 'Dreamy Sky'
+      label: 'Cat in the Rain'
     },
     {
       url: '/assets/HBG3.gif',
       type: 'gif',
-      label: 'Animated Forest'
+      label: 'Bonfire'
     }
   ];
   
