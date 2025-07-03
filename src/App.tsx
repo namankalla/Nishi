@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
 import JournalPage from './pages/JournalPage';
+import TimeCapsuleListPage from './pages/TimeCapsuleListPage';
 
 function App() {
   const { isAuthenticated, isLoading, initialize, user } = useAuthStore();
