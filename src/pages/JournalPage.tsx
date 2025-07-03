@@ -303,7 +303,7 @@ const JournalPage: React.FC = () => {
     }, 1000);
     return () => clearInterval(interval);
   }, [user, currentEntry, title, content, selectedDate, mood, weather, mediaElements, stickies, isModified]);
-
+  
   const handleSave = async () => {
     if (!user) return;
     

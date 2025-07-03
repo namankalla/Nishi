@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useJournalStore } from '../store/useJournalStore';
+import { useTimeCapsuleStore } from '../store/useTimeCapsuleStore';
 import { useThemeStore } from '../store/useThemeStore';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -17,9 +18,13 @@ import {
   Upload,
   Calendar as CalendarIcon,
   List,
-  Palette
+  Palette,
+  Clock,
+  Lock,
+  Unlock,
+  ArrowRight
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isBefore } from 'date-fns';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,6 +39,10 @@ const HomePage: React.FC = () => {
     setSelectedDate,
     setCurrentEntry
   } = useJournalStore();
+  const {
+    capsules,
+    loadCapsules
+  } = useTimeCapsuleStore();
   const { 
     currentTheme, 
     setTheme, 
@@ -50,13 +59,47 @@ const HomePage: React.FC = () => {
   const colors = getThemeColors();
   const filteredEntries = getFilteredEntries();
   
+  // Get recent time capsules for quick access
+  const recentCapsules = capsules.slice(0, 3);
+  const readyToOpenCapsules = capsules.filter(c => !isBefore(new Date(), new Date(c.openDate)) && !c.isOpened);
+  
+  // Preset HomePage backgrounds (GIFs) - use local assets
+  const HOMEPAGE_BACKGROUNDS = [
+    {
+      url: '/assets/HBG1.gif',
+      type: 'gif',
+      label: 'Pixel Sunset (Default)'
+    },
+    {
+      url: '/assets/HBG2.gif',
+      type: 'gif',
+      label: 'Dreamy Sky'
+    },
+    {
+      url: '/assets/HBG3.gif',
+      type: 'gif',
+      label: 'Animated Forest'
+    }
+  ];
+  
   useEffect(() => {
     console.log('[NISHI DEBUG] User:', user);
     console.log('[NISHI DEBUG] Entries:', entries);
     if (user && entries.length === 0) {
       loadEntries(user.uid);
     }
-  }, [user, entries.length]);
+    if (user && capsules.length === 0) {
+      loadCapsules(user.uid);
+    }
+  }, [user, entries.length, capsules.length]);
+  
+  // Set default homepage background if not set
+  useEffect(() => {
+    if (!customWallpaper) {
+      setCustomWallpaper(HOMEPAGE_BACKGROUNDS[0].url);
+    }
+    // eslint-disable-next-line
+  }, []);
   
   const handleCreateEntry = () => {
     setCurrentEntry(null);
@@ -73,15 +116,8 @@ const HomePage: React.FC = () => {
     navigate('/auth');
   };
   
-  const handleWallpaperUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setCustomWallpaper(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleSelectHomepageBg = (url: string) => {
+    setCustomWallpaper(url);
   };
   
   const handleJournalWallpaperUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,6 +177,10 @@ const HomePage: React.FC = () => {
                   <Plus size={16} className="mr-2" />
                   New Entry
                 </Button>
+                <Button onClick={() => navigate('/time-capsules')} variant="secondary">
+                  <Clock size={16} className="mr-2" />
+                  Time Capsules
+                </Button>
                 <button
                   onClick={() => setShowSettings(true)}
                   className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
@@ -157,6 +197,35 @@ const HomePage: React.FC = () => {
             </div>
           </GlassCard>
         </div>
+
+        {/* Time Capsule Notifications */}
+        {readyToOpenCapsules.length > 0 && (
+          <div className="max-w-6xl mx-auto px-4 mb-6">
+            <GlassCard className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Unlock size={24} className="text-amber-600" />
+                  <div>
+                    <h3 className="font-semibold text-amber-800">
+                      {readyToOpenCapsules.length} Time Capsule{readyToOpenCapsules.length > 1 ? 's' : ''} Ready to Open!
+                    </h3>
+                    <p className="text-sm text-amber-700">
+                      Your messages from the past are waiting for you.
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  onClick={() => navigate('/time-capsules')}
+                  variant="primary"
+                  size="sm"
+                >
+                  Open Now
+                </Button>
+              </div>
+            </GlassCard>
+          </div>
+        )}
+        
         {/* Main Content */}
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -201,6 +270,79 @@ const HomePage: React.FC = () => {
                   </div>
                 </div>
               </GlassCard>
+
+              {/* Time Capsule Introduction Card */}
+              <GlassCard className="p-6 mb-6 bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200">
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-3">
+                    <Clock size={32} className="text-purple-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-purple-900 mb-2">
+                    Introducing Time Capsule Journals
+                  </h3>
+                  <p className="text-sm text-purple-700 mb-4">
+                    Write journal entries to your future self and set them to open on a specific date and time.
+                  </p>
+                  <Button 
+                    onClick={() => navigate('/time-capsules')}
+                    variant="primary"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <Clock size={16} className="mr-2" />
+                    Create Time Capsule
+                    <ArrowRight size={16} className="ml-2" />
+                  </Button>
+                </div>
+              </GlassCard>
+
+              {/* Time Capsules Quick Access */}
+              {recentCapsules.length > 0 && (
+                <GlassCard className="p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-slate-900 flex items-center">
+                      <Clock size={16} className="mr-2" />
+                      Time Capsules
+                    </h3>
+                    <Button
+                      onClick={() => navigate('/time-capsules')}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      View All
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {recentCapsules.map(capsule => {
+                      const isLocked = isBefore(new Date(), new Date(capsule.openDate));
+                      return (
+                        <div
+                          key={capsule.id}
+                          className="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+                          onClick={() => navigate('/time-capsules')}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <h4 className="text-sm font-medium text-slate-900 truncate">
+                                {capsule.title}
+                              </h4>
+                              <p className="text-xs text-slate-500">
+                                {format(new Date(capsule.openDate), 'MMM d, yyyy \'at\' h:mm a')}
+                              </p>
+                            </div>
+                            {isLocked ? (
+                              <Lock size={14} className="text-amber-500" />
+                            ) : (
+                              <Unlock size={14} className="text-green-500" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </GlassCard>
+              )}
+              
               {/* Calendar Widget */}
               {viewMode === 'calendar' && (
                 <GlassCard className="p-4">
@@ -212,6 +354,7 @@ const HomePage: React.FC = () => {
                 </GlassCard>
               )}
             </div>
+            
             {/* Right Panel - Entries */}
             <div className="lg:col-span-2">
               {viewMode === 'list' ? (
@@ -229,10 +372,16 @@ const HomePage: React.FC = () => {
                         }
                       </p>
                       {!searchQuery && (
-                        <Button onClick={handleCreateEntry} variant="primary">
-                          <Plus size={16} className="mr-2" />
-                          Create First Entry
-                        </Button>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                          <Button onClick={handleCreateEntry} variant="primary">
+                            <Plus size={16} className="mr-2" />
+                            Create First Entry
+                          </Button>
+                          <Button onClick={() => navigate('/time-capsules')} variant="outline">
+                            <Clock size={16} className="mr-2" />
+                            Create Time Capsule
+                          </Button>
+                        </div>
                       )}
                     </GlassCard>
                   ) : (
@@ -299,10 +448,16 @@ const HomePage: React.FC = () => {
                     ) : (
                       <div className="text-center py-8">
                         <p className="text-slate-900 mb-4">No entry for this date</p>
-                        <Button onClick={handleCreateEntry} variant="outline">
-                          <Plus size={16} className="mr-2" />
-                          Create Entry
-                        </Button>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                          <Button onClick={handleCreateEntry} variant="outline">
+                            <Plus size={16} className="mr-2" />
+                            Create Entry
+                          </Button>
+                          <Button onClick={() => navigate('/time-capsules')} variant="ghost">
+                            <Clock size={16} className="mr-2" />
+                            Create Time Capsule
+                          </Button>
+                        </div>
                       </div>
                     );
                   })()}
@@ -311,6 +466,7 @@ const HomePage: React.FC = () => {
             </div>
           </div>
         </div>
+        
         {/* Settings Modal */}
         <Modal
           isOpen={showSettings}
@@ -349,40 +505,72 @@ const HomePage: React.FC = () => {
                 ))}
               </div>
             </GlassCard>
-            {/* Custom Wallpaper */}
+            
+            {/* Custom Wallpaper (Preset GIFs) */}
             <GlassCard className="p-6">
               <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
                 <Upload size={20} className="mr-2" />
-                Custom Wallpaper
+                Homepage Background
               </h4>
-              <div className="flex items-center space-x-4">
-                <label className="flex-1">
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                {HOMEPAGE_BACKGROUNDS.map(bg => (
+                  <button
+                    key={bg.url}
+                    onClick={() => handleSelectHomepageBg(bg.url)}
+                    className={`rounded-lg border-2 overflow-hidden transition-all duration-200 focus:outline-none ${customWallpaper === bg.url ? 'border-blue-600 shadow-lg' : 'border-slate-200 hover:border-slate-400'}`}
+                    style={{ padding: 0 }}
+                    aria-label={bg.label}
+                    disabled={!!(customWallpaper && !HOMEPAGE_BACKGROUNDS.some(p => p.url === customWallpaper))}
+                  >
+                    <img
+                      src={bg.url}
+                      alt={bg.label}
+                      className="w-full h-28 object-cover"
+                    />
+                    <div className={`text-xs text-center py-1 ${customWallpaper === bg.url ? 'text-blue-700 font-semibold' : 'text-slate-700'}`}>{bg.label}</div>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-4 mb-2">
+                <label className="flex-1 cursor-pointer">
                   <input
                     type="file"
-                    accept="image/*"
-                    onChange={handleWallpaperUpload}
+                    accept="image/*,image/gif"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          setCustomWallpaper(ev.target?.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
                     className="hidden"
                   />
-                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-slate-400 transition-colors cursor-pointer">
-                    <Upload size={24} className="mx-auto mb-2 text-slate-900" />
-                    <p className="text-sm text-slate-900">
-                      Click to upload a background image
-                    </p>
+                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-slate-400 transition-colors cursor-pointer">
+                    <Upload size={20} className="mx-auto mb-1 text-slate-900" />
+                    <span className="text-xs text-slate-900">Upload Custom</span>
                   </div>
                 </label>
+                {customWallpaper && !HOMEPAGE_BACKGROUNDS.some(bg => bg.url === customWallpaper) && (
+                  <div className="flex flex-col items-center">
+                    <img src={customWallpaper} alt="Custom" className="w-24 h-16 object-cover rounded mb-1 border border-slate-300" />
+                    <Button
+                      onClick={() => setCustomWallpaper(null)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                )}
               </div>
-              {customWallpaper && (
-                <div className="mt-4">
-                  <Button
-                    onClick={() => setCustomWallpaper(null)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Remove Wallpaper
-                  </Button>
-                </div>
-              )}
+              <div className="mt-2 text-xs text-slate-500">
+                Choose an animated or custom background for your HomePage.
+              </div>
             </GlassCard>
+            
             {/* Journal Wallpaper Section */}
             <GlassCard className="p-6">
               <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
