@@ -407,7 +407,7 @@ const TimeCapsulePage: React.FC = () => {
                 ) : (
                   <Unlock size={16} className="text-green-500" />
                 )}
-                <div className="text-sm text-slate-500">
+                <div className="text-sm text-black">
                   {currentCapsule ? (isLocked ? `Locked until ${format(new Date(currentCapsule.openDate), 'MMM d, yyyy \'at\' h:mm a')}` : 'Time capsule opened!') : 'New time capsule'}
                 </div>
               </div>
@@ -456,7 +456,7 @@ const TimeCapsulePage: React.FC = () => {
               <p className="text-amber-700">
                 This time capsule will open on {format(new Date(currentCapsule!.openDate), 'EEEE, MMMM d, yyyy \'at\' h:mm a')}
               </p>
-              <p className="text-sm text-amber-600 mt-1">
+              <p className="text-sm text-black mt-1">
                 {daysUntilOpen > 0 ? `${daysUntilOpen} days remaining` : 'Opening today!'}
               </p>
             </div>
@@ -469,7 +469,7 @@ const TimeCapsulePage: React.FC = () => {
         {!isLocked && (
           <GlassCard className="mb-6 flex flex-wrap gap-4 items-center">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600">Page Color:</span>
+              <span className="text-sm text-black">Page Color:</span>
               {PAGE_COLORS.map(opt => (
                 <button
                   key={opt.value}
@@ -482,7 +482,7 @@ const TimeCapsulePage: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-2 ml-6">
-              <span className="text-sm text-slate-600">Page Style:</span>
+              <span className="text-sm text-black">Page Style:</span>
               {PAGE_STYLES.map(opt => (
                 <button
                   key={opt.value}
@@ -495,7 +495,7 @@ const TimeCapsulePage: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-2 ml-6">
-              <span className="text-sm text-slate-600">Add Sticky Note:</span>
+              <span className="text-sm text-black">Add Sticky Note:</span>
               {STICKY_COLORS.map(opt => (
                 <button
                   key={opt.value}
@@ -509,7 +509,7 @@ const TimeCapsulePage: React.FC = () => {
             
             {pageStyle === 'lined' && (
               <div className="flex items-center gap-2 ml-6">
-                <span className="text-sm text-slate-600">Line Color:</span>
+                <span className="text-sm text-black">Line Color:</span>
                 {LINE_COLORS.map(opt => (
                   <button
                     key={opt.value}
@@ -570,7 +570,7 @@ const TimeCapsulePage: React.FC = () => {
                   disabled={isLocked}
                   className="text-sm text-slate-600 bg-transparent border-none focus:outline-none disabled:opacity-50"
                 />
-                <span className="text-xs text-slate-500">Open Date & Time</span>
+                <span className="text-xs text-black">Open Date & Time</span>
               </div>
               
               <div className="flex items-center space-x-2">
@@ -726,7 +726,7 @@ const TimeCapsulePage: React.FC = () => {
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
-                    <span className="text-xs text-slate-500">{uploadProgress.toFixed(0)}%</span>
+                    <span className="text-xs text-black">{uploadProgress.toFixed(0)}%</span>
                   </div>
                 )}
                 {uploadError && (
