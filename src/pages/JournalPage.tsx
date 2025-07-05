@@ -18,12 +18,15 @@ import {
   Smile,
   Calendar,
   Cloud,
-  FileText
+  FileText,
+  RotateCcw,
+  RotateCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../config/firebase';
 import GlassCard from '../components/ui/GlassCard';
+import JournalDrawingOverlay from '../components/ui/JournalDrawingOverlay';
 
 const PAGE_COLORS = [
   { name: 'White', value: '#fff' },
@@ -47,6 +50,8 @@ const LINE_COLORS = [
   { name: 'Blue', value: '#3b82f6' },
   { name: 'Yellow', value: '#ffe066' }
 ];
+
+const DRAW_SIZES = [2, 4, 8, 16, 32];
 
 const JournalPage: React.FC = () => {
   const navigate = useNavigate();
@@ -321,7 +326,8 @@ const JournalPage: React.FC = () => {
       tags: [], // Could extract from content or add UI for tags
       attachments: [],
       mediaElements: mediaElements,
-      stickies: stickies
+      stickies: stickies,
+      drawingData: drawingData
     };
     
     try {
@@ -642,7 +648,51 @@ const JournalPage: React.FC = () => {
     
     console.log('Added test media element:', newMediaElement);
   };
-  
+
+  const [drawingMode, setDrawingMode] = useState(false);
+  const [drawingData, setDrawingData] = useState<any>(currentEntry?.drawingData || []);
+  const contentAreaRef = useRef<HTMLDivElement>(null);
+  const [drawTool, setDrawTool] = useState<'pen' | 'eraser'>('pen');
+  const [drawColor, setDrawColor] = useState('#000000');
+  const [drawSize, setDrawSize] = useState(4);
+  const [drawLines, setDrawLines] = useState<any[]>(drawingData || []);
+  const [drawHistory, setDrawHistory] = useState<any[]>([]);
+  const [drawOpacity, setDrawOpacity] = useState(1);
+
+  // Drawing actions
+  const handleDrawUndo = () => {
+    if (drawLines.length === 0) return;
+    setDrawHistory([drawLines[drawLines.length - 1], ...drawHistory]);
+    setDrawLines(drawLines.slice(0, -1));
+  };
+  const handleDrawRedo = () => {
+    if (drawHistory.length === 0) return;
+    setDrawLines([...drawLines, drawHistory[0]]);
+    setDrawHistory(drawHistory.slice(1));
+  };
+  const handleDrawClear = () => {
+    setDrawLines([]);
+    setDrawHistory([]);
+  };
+  const handleDrawSave = () => {
+    setDrawingData(drawLines);
+    setDrawingMode(false);
+  };
+
+  // Replace quickColor1/2 with an array of quick colors
+  const [quickColors, setQuickColors] = useState([
+    '#000000', // black (main, always reflects drawColor)
+    '#3b82f6', // blue
+    '#ef4444', // red
+    '#22c55e', // green
+    '#f59e42'  // orange
+  ]);
+
+  // Helper to update a quick color slot
+  const setQuickColor = (idx: number, color: string) => {
+    setQuickColors(qcs => qcs.map((c, i) => i === idx ? color : c));
+  };
+
   return (
     <div
       className={`min-h-screen ${!customJournalWallpaper ? colors.background : ''}`}
@@ -669,7 +719,7 @@ const JournalPage: React.FC = () => {
                 Back
               </Button>
               
-              <div className="text-sm text-slate-500">
+              <div className="text-sm text-black">
                 {currentEntry ? 'Editing entry' : 'New entry'}
               </div>
             </div>
@@ -701,501 +751,643 @@ const JournalPage: React.FC = () => {
       </div>
       
       {/* Editor */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <GlassCard className="mb-6 flex flex-wrap gap-4 items-center">
-          {/* Page color options */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">Page Color:</span>
-            {PAGE_COLORS.map(opt => (
+      <div className="max-w-4xl mx-auto px-4 py-8" style={{ position: 'relative' }}>
+        {drawingMode && (
+          <GlassCard className="fixed left-8 top-40 w-56 flex flex-col gap-4 items-center p-4 z-[1100] shadow-xl" style={{ pointerEvents: 'auto' }}>
+            <div className="font-bold mb-2">Drawing Tools</div>
+            <div className="flex gap-2 mb-2">
               <button
-                key={opt.value}
-                className={`w-6 h-6 rounded-full border-2 ${pageColor === opt.value ? 'border-slate-900' : 'border-slate-300'}`}
-                style={{ background: opt.value }}
-                onClick={() => setPageColor(opt.value)}
-                aria-label={opt.name}
-              />
-            ))}
-          </div>
-          {/* Page style options */}
-          <div className="flex items-center gap-2 ml-6">
-            <span className="text-sm text-slate-600">Page Style:</span>
-            {PAGE_STYLES.map(opt => (
-              <button
-                key={opt.value}
-                className={`px-2 py-1 rounded border ${pageStyle === opt.value ? 'border-slate-900 bg-slate-100' : 'border-slate-300'}`}
-                onClick={() => setPageStyle(opt.value)}
+                className={`p-2 rounded-full border ${drawTool === 'pen' ? 'bg-blue-200 border-blue-500' : 'bg-white border-slate-300'}`}
+                onClick={() => setDrawTool('pen')}
+                title="Pen"
               >
-                {opt.name}
+                ✏️
               </button>
-            ))}
-          </div>
-          {/* Sticky note options */}
-          <div className="flex items-center gap-2 ml-6">
-            <span className="text-sm text-slate-600">Add Sticky Note:</span>
-            {STICKY_COLORS.map(opt => (
               <button
-                key={opt.value}
-                className="w-6 h-6 rounded border border-slate-300"
-                style={{ background: opt.value }}
-                onClick={() => addSticky(opt.value)}
-                aria-label={opt.name}
+                className={`p-2 rounded-full border ${drawTool === 'eraser' ? 'bg-blue-200 border-blue-500' : 'bg-white border-slate-300'}`}
+                onClick={() => setDrawTool('eraser')}
+                title="Eraser"
+              >
+                🧽
+              </button>
+            </div>
+            <div className="mb-2 w-full">
+              <div className="text-xs mb-1">Color</div>
+              <div className="flex gap-2 items-center justify-center">
+                {quickColors.map((color, idx) => (
+                  <div key={idx} className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      className={`w-8 h-8 rounded-full border-2 ${drawColor === color ? 'border-blue-500 ring-2 ring-blue-300' : 'border-slate-300'}`}
+                      style={{ background: color }}
+                      onClick={() => setDrawColor(color)}
+                      disabled={drawTool === 'eraser'}
+                      title={idx === 0 ? 'Current Color' : `Quick Color ${idx}`}
+                    />
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={e => idx === 0 ? setDrawColor(e.target.value) : setQuickColor(idx, e.target.value)}
+                      className="w-6 h-6 mt-1 border border-slate-300 rounded cursor-pointer"
+                      style={{ padding: 0 }}
+                      title={idx === 0 ? 'Set Current Color' : `Set Quick Color ${idx}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mb-2 w-full">
+              <div className="text-xs mb-1">Brush Size</div>
+              <input
+                type="range"
+                min={2}
+                max={32}
+                step={2}
+                value={drawSize}
+                onChange={e => setDrawSize(Number(e.target.value))}
+                className="w-full"
               />
-            ))}
-          </div>
-          {pageStyle === 'lined' && (
-            <div className="flex items-center gap-2 ml-6">
-              <span className="text-sm text-slate-600">Line Color:</span>
-              {LINE_COLORS.map(opt => (
+              <div className="text-xs text-center">{drawSize}px</div>
+            </div>
+            <div className="mb-2 w-full">
+              <div className="text-xs mb-1">Opacity</div>
+              <input
+                type="range"
+                min={0.1}
+                max={1}
+                step={0.01}
+                value={drawOpacity}
+                onChange={e => setDrawOpacity(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="text-xs text-center">{Math.round(drawOpacity * 100)}%</div>
+            </div>
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={handleDrawUndo}
+                disabled={drawLines.length === 0}
+                title="Undo"
+                className="p-2 rounded-full bg-slate-100 hover:bg-blue-100 border border-slate-300 disabled:opacity-50 transition"
+                style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+              >
+                <RotateCcw size={20} className="text-blue-600" />
+              </button>
+              <button
+                onClick={handleDrawRedo}
+                disabled={drawHistory.length === 0}
+                title="Redo"
+                className="p-2 rounded-full bg-slate-100 hover:bg-green-100 border border-slate-300 disabled:opacity-50 transition"
+                style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+              >
+                <RotateCw size={20} className="text-green-600" />
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to clear your drawing? This cannot be undone.')) {
+                    handleDrawClear();
+                  }
+                }}
+                title="Clear"
+                className="p-2 rounded-full bg-slate-100 hover:bg-red-100 border border-slate-300 transition"
+                style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
+              >
+                <Trash2 size={20} className="text-red-600" />
+              </button>
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button onClick={handleDrawSave} className="px-3 py-1 rounded bg-blue-500 text-white font-bold">Save</button>
+              <button onClick={() => setDrawingMode(false)} className="px-3 py-1 rounded bg-slate-200">Close</button>
+            </div>
+          </GlassCard>
+        )}
+        <div>
+          <GlassCard className="mb-6 flex flex-wrap gap-4 items-center">
+            {/* Page color options */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-black">Page Color:</span>
+              {PAGE_COLORS.map(opt => (
                 <button
                   key={opt.value}
-                  className={`w-6 h-6 rounded-full border-2 ${lineColor === opt.value ? 'border-slate-900' : 'border-slate-300'}`}
+                  className={`w-6 h-6 rounded-full border-2 ${pageColor === opt.value ? 'border-slate-900' : 'border-slate-300'}`}
                   style={{ background: opt.value }}
-                  onClick={() => setLineColor(opt.value)}
+                  onClick={() => setPageColor(opt.value)}
                   aria-label={opt.name}
                 />
               ))}
             </div>
-          )}
-        </GlassCard>
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-          {/* Entry Header */}
-          <div className="p-6 border-b border-slate-200">
-            <Input
-              type="text"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                setIsModified(true);
-              }}
-              placeholder="Entry title..."
-              fullWidth
-              className="text-xl font-semibold border-none bg-transparent px-0 focus:ring-0"
-            />
-            
-            <div className="flex items-center space-x-6 mt-4">
-              <div className="flex items-center space-x-2">
-                <Calendar size={16} className="text-slate-500" />
-                <input
-                  type="date"
-                  value={format(selectedDate, 'yyyy-MM-dd')}
-                  onChange={(e) => {
-                    setSelectedDate(new Date(e.target.value));
-                    setIsModified(true);
-                  }}
-                  className="text-sm text-slate-600 bg-transparent border-none focus:outline-none"
-                />
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Smile size={16} className="text-slate-500" />
-                <select
-                  value={mood}
-                  onChange={(e) => {
-                    setMood(e.target.value);
-                    setIsModified(true);
-                  }}
-                  className="text-sm text-slate-600 bg-transparent border-none focus:outline-none"
+            {/* Page style options */}
+            <div className="flex items-center gap-2 ml-6">
+              <span className="text-sm text-black">Page Style:</span>
+              {PAGE_STYLES.map(opt => (
+                <button
+                  key={opt.value}
+                  className={`px-2 py-1 rounded border ${pageStyle === opt.value ? 'border-slate-900 bg-slate-100' : 'border-slate-300'}`}
+                  onClick={() => setPageStyle(opt.value)}
                 >
-                  <option value="">Select mood</option>
-                  {moods.map((moodOption) => (
-                    <option key={moodOption.name} value={moodOption.name}>
-                      {moodOption.emoji} {moodOption.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Cloud size={16} className="text-slate-500" />
-                <select
-                  value={weather}
-                  onChange={(e) => {
-                    setWeather(e.target.value);
-                    setIsModified(true);
-                  }}
-                  className="text-sm text-slate-600 bg-transparent border-none focus:outline-none"
-                >
-                  <option value="">Select weather</option>
-                  {weatherOptions.map((weatherOption) => (
-                    <option key={weatherOption.name} value={weatherOption.name}>
-                      {weatherOption.emoji} {weatherOption.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          {/* Toolbar */}
-          <div className="px-6 py-3 border-b border-slate-200 bg-slate-50">
-            <div className="flex items-center space-x-1">
-              {/* Text Formatting */}
-              <button
-                onClick={() => applyFormat('bold')}
-                className="p-2 hover:bg-slate-200 rounded transition-colors"
-                title="Bold"
-              >
-                <Bold size={16} />
-              </button>
-              
-              <button
-                onClick={() => applyFormat('italic')}
-                className="p-2 hover:bg-slate-200 rounded transition-colors"
-                title="Italic"
-              >
-                <Italic size={16} />
-              </button>
-              
-              <button
-                onClick={() => applyFormat('underline')}
-                className="p-2 hover:bg-slate-200 rounded transition-colors"
-                title="Underline"
-              >
-                <Underline size={16} />
-              </button>
-              
-              <div className="w-px h-6 bg-slate-300 mx-2" />
-              
-              {/* Highlighters */}
-              <div className="flex items-center space-x-1">
-                <Highlighter size={16} className="text-slate-500" />
-                <button
-                  onClick={() => applyHighlight('#FFE16D')}
-                  className="w-6 h-6 rounded border border-slate-300"
-                  style={{ backgroundColor: '#FFE16D' }}
-                  title="Yellow Highlight"
-                />
-                <button
-                  onClick={() => applyHighlight('#6EABC6')}
-                  className="w-6 h-6 rounded border border-slate-300"
-                  style={{ backgroundColor: '#6EABC6' }}
-                  title="Blue Highlight"
-                />
-                <button
-                  onClick={() => applyHighlight('#4ADE80')}
-                  className="w-6 h-6 rounded border border-slate-300"
-                  style={{ backgroundColor: '#4ADE80' }}
-                  title="Green Highlight"
-                />
-                <button
-                  onClick={() => applyHighlight('#FB923C')}
-                  className="w-6 h-6 rounded border border-slate-300"
-                  style={{ backgroundColor: '#FB923C' }}
-                  title="Orange Highlight"
-                />
-              </div>
-              
-              <div className="w-px h-6 bg-slate-300 mx-2" />
-              
-              {/* Media */}
-              <button
-                className="p-2 hover:bg-slate-200 rounded transition-colors"
-                title="Add Image"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={uploading}
-              >
-                <Image size={16} />
-              </button>
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file, 'image');
-                  e.target.value = '';
-                }}
-              />
-              <button
-                className="p-2 hover:bg-slate-200 rounded transition-colors"
-                title="Add Video"
-                onClick={() => videoInputRef.current?.click()}
-                disabled={uploading}
-              >
-                <Video size={16} />
-              </button>
-              <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file, 'video');
-                  e.target.value = '';
-                }}
-              />
-              {uploading && (
-                <div className="ml-4 flex items-center space-x-2">
-                  <span className="text-xs text-blue-600">Uploading...</span>
-                  <div className="w-16 h-1 bg-slate-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-slate-500">{uploadProgress.toFixed(0)}%</span>
-                </div>
-              )}
-              {uploadError && (
-                <div className="ml-4 flex items-center space-x-2">
-                  <span className="text-xs text-red-600">{uploadError}</span>
-                  <button
-                    onClick={() => setUploadError(null)}
-                    className="text-xs text-slate-400 hover:text-slate-600"
-                    title="Dismiss error"
-                  >
-                    ×
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* Test button for debugging */}
-          <button
-            className="p-2 hover:bg-slate-200 rounded transition-colors text-xs"
-            title="Test Image Insertion"
-            onClick={testImageInsertion}
-          >
-            🧪 Test
-          </button>
-          
-          {/* Content Editor */}
-          <div className="relative" style={{ background: pageColor, minHeight: 600 }}>
-            {/* Render freely placed media elements */}
-            {mediaElements.map(media => (
-              <div
-                key={media.id}
-                style={{
-                  position: 'absolute',
-                  left: media.x,
-                  top: media.y,
-                  width: media.width,
-                  height: media.height,
-                  zIndex: 20,
-                  cursor: 'move',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                  borderRadius: 8,
-                  background: '#fff',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  userSelect: 'none',
-                  transform: `rotate(${media.rotation}deg)`,
-                  transformOrigin: 'center center'
-                }}
-                draggable
-                onDragStart={e => {
-                  e.dataTransfer.setData('media-id', media.id);
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setDragImage(e.currentTarget, media.width/2, media.height/2);
-                }}
-                onDragEnd={e => {
-                  const rect = e.currentTarget.parentElement?.getBoundingClientRect();
-                  if (rect) {
-                    updateMediaElement(media.id, {
-                      x: e.clientX - rect.left - media.width/2,
-                      y: e.clientY - rect.top - media.height/2
-                    });
-                  }
-                }}
-              >
-                {media.type === 'image' ? (
-                  <img
-                    src={media.url}
-                    alt="media"
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: 'contain', 
-                      borderRadius: 8,
-                      transform: `rotate(-${media.rotation}deg)` // Counter-rotate the image to keep it upright
-                    }}
-                    onLoad={(e) => {
-                      // Set aspect ratio based on actual image dimensions
-                      const img = e.target as HTMLImageElement;
-                      if (img.naturalWidth && img.naturalHeight) {
-                        const aspectRatio = img.naturalWidth / img.naturalHeight;
-                        updateMediaElement(media.id, { aspectRatio });
-                      }
-                    }}
-                  />
-                ) : (
-                  <video
-                    src={media.url}
-                    controls
-                    muted={false}
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      borderRadius: 8,
-                      transform: `rotate(-${media.rotation}deg)` // Counter-rotate the video to keep it upright
-                    }}
-                  />
-                )}
-                
-                {/* Control buttons */}
-                <div className="absolute top-1 right-1 flex gap-1">
-                  {/* Rotate button */}
-                  <button
-                    className="text-xs text-slate-500 hover:text-blue-500 bg-white bg-opacity-80 rounded px-1"
-                    style={{ border: 'none', cursor: 'pointer', zIndex: 30 }}
-                    onClick={() => rotateMedia(media.id, 90)}
-                    title="Rotate 90°"
-                  >
-                    🔄
-                  </button>
-                  
-                  {/* Remove button */}
-                  <button
-                    className="text-xs text-slate-500 hover:text-red-500 bg-white bg-opacity-80 rounded px-1"
-                    style={{ border: 'none', cursor: 'pointer', zIndex: 30 }}
-                    onClick={() => removeMediaElement(media.id)}
-                    title="Remove"
-                  >
-                    ×
-                  </button>
-                </div>
-                
-                {/* Resize handles */}
-                <div
-                  className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
-                  style={{ zIndex: 30 }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    const startX = e.clientX;
-                    const startY = e.clientY;
-                    const startWidth = media.width;
-                    const startHeight = media.height;
-                    
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const deltaX = moveEvent.clientX - startX;
-                      const deltaY = moveEvent.clientY - startY;
-                      
-                      let newWidth = startWidth + deltaX;
-                      let newHeight = startHeight + deltaY;
-                      
-                      // Maintain aspect ratio if it exists
-                      if (media.aspectRatio) {
-                        if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                          newHeight = newWidth / media.aspectRatio;
-                        } else {
-                          newWidth = newHeight * media.aspectRatio;
-                        }
-                      }
-                      
-                      // Minimum size
-                      newWidth = Math.max(50, newWidth);
-                      newHeight = Math.max(50, newHeight);
-                      
-                      resizeMedia(media.id, newWidth, newHeight);
-                    };
-                    
-                    const handleMouseUp = () => {
-                      document.removeEventListener('mousemove', handleMouseMove);
-                      document.removeEventListener('mouseup', handleMouseUp);
-                    };
-                    
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                  }}
-                >
-                  <div className="w-full h-full bg-blue-500 bg-opacity-50 rounded-bl"></div>
-                </div>
-              </div>
-            ))}
-            {/* Lined or blank background */}
-            {pageStyle === 'lined' && (
-              <div 
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  backgroundImage: `repeating-linear-gradient(
-                    transparent,
-                    transparent 30px,
-                    ${lineColor} 30px,
-                    ${lineColor} 32px
-                  )`,
-                  backgroundPosition: '0 20px',
-                  zIndex: 1,
-                  opacity: 0.7
-                }}
-              />
-            )}
-            {/* Sticky notes */}
-            {stickies.map(sticky => (
-              <div
-                key={sticky.id}
-                style={{
-                  position: 'absolute',
-                  left: sticky.x,
-                  top: sticky.y,
-                  background: sticky.color,
-                  minWidth: 120,
-                  minHeight: 80,
-                  zIndex: 10,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                  borderRadius: 8,
-                  padding: 8,
-                  cursor: 'move',
-                  userSelect: 'none'
-                }}
-                draggable
-                onDragStart={e => {
-                  e.dataTransfer.setData('text/plain', sticky.id);
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setDragImage(e.currentTarget, 60, 40);
-                }}
-                onDragEnd={e => {
-                  const rect = e.currentTarget.parentElement?.getBoundingClientRect();
-                  if (rect) {
-                    updateSticky(sticky.id, {
-                      x: e.clientX - rect.left - 60,
-                      y: e.clientY - rect.top - 20
-                    });
-                  }
-                }}
-              >
-                <textarea
-                  value={sticky.text}
-                  onChange={e => updateSticky(sticky.id, { text: e.target.value })}
-                  className="w-full h-full bg-transparent resize-none outline-none text-sm"
-                  style={{ minHeight: 60 }}
-                  placeholder="Sticky note..."
-                />
-                <button
-                  className="absolute top-1 right-1 text-xs text-slate-500 hover:text-red-500"
-                  onClick={() => removeSticky(sticky.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                  aria-label="Remove sticky"
-                >
-                  ×
+                  {opt.name}
                 </button>
+              ))}
+            </div>
+            {/* Sticky note options */}
+            <div className="flex items-center gap-2 ml-6">
+              <span className="text-sm text-black">Add Sticky Note:</span>
+              {STICKY_COLORS.map(opt => (
+                <button
+                  key={opt.value}
+                  className="w-6 h-6 rounded border border-slate-300"
+                  style={{ background: opt.value }}
+                  onClick={() => addSticky(opt.value)}
+                  aria-label={opt.name}
+                />
+              ))}
+            </div>
+            {pageStyle === 'lined' && (
+              <div className="flex items-center gap-2 ml-6">
+                <span className="text-sm text-black">Line Color:</span>
+                {LINE_COLORS.map(opt => (
+                  <button
+                    key={opt.value}
+                    className={`w-6 h-6 rounded-full border-2 ${lineColor === opt.value ? 'border-slate-900' : 'border-slate-300'}`}
+                    style={{ background: opt.value }}
+                    onClick={() => setLineColor(opt.value)}
+                    aria-label={opt.name}
+                  />
+                ))}
               </div>
-            ))}
-            {/* Custom placeholder for contentEditable */}
-            {content === '' && (
-              <span className="absolute left-6 top-6 text-slate-400 pointer-events-none select-none" style={{fontFamily: 'Georgia, serif', fontSize: '16px', lineHeight: '32px', zIndex: 2}}>
-                Start writing your thoughts...
-              </span>
             )}
-            <div
-              ref={contentRef}
-              contentEditable
-              onInput={handleContentChange}
-              onPaste={handleContentChange}
-              className="min-h-[500px] p-6 outline-none text-slate-800 leading-relaxed"
-              style={{
-                fontFamily: 'Georgia, serif',
-                fontSize: '16px',
-                lineHeight: '32px',
-                position: 'relative',
-                zIndex: 2,
-                background: 'none'
-              }}
-            />
+          </GlassCard>
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            {/* Entry Header */}
+            <div className="p-6 border-b border-slate-200">
+              <Input
+                type="text"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setIsModified(true);
+                }}
+                placeholder="Entry title..."
+                fullWidth
+                className="text-xl font-semibold border-none bg-transparent px-0 focus:ring-0"
+              />
+              
+              <div className="flex items-center space-x-6 mt-4">
+                <div className="flex items-center space-x-2">
+                  <Calendar size={16} className="text-black" />
+                  <input
+                    type="date"
+                    value={format(selectedDate, 'yyyy-MM-dd')}
+                    onChange={(e) => {
+                      setSelectedDate(new Date(e.target.value));
+                      setIsModified(true);
+                    }}
+                    className="text-sm text-black bg-transparent border-none focus:outline-none"
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Smile size={16} className="text-black" />
+                  <select
+                    value={mood}
+                    onChange={(e) => {
+                      setMood(e.target.value);
+                      setIsModified(true);
+                    }}
+                    className="text-sm text-black bg-transparent border-none focus:outline-none"
+                  >
+                    <option value="">Select mood</option>
+                    {moods.map((moodOption) => (
+                      <option key={moodOption.name} value={moodOption.name}>
+                        {moodOption.emoji} {moodOption.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Cloud size={16} className="text-black" />
+                  <select
+                    value={weather}
+                    onChange={(e) => {
+                      setWeather(e.target.value);
+                      setIsModified(true);
+                    }}
+                    className="text-sm text-black bg-transparent border-none focus:outline-none"
+                  >
+                    <option value="">Select weather</option>
+                    {weatherOptions.map((weatherOption) => (
+                      <option key={weatherOption.name} value={weatherOption.name}>
+                        {weatherOption.emoji} {weatherOption.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            {/* Toolbar */}
+            <div className="px-6 py-3 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center space-x-1">
+                {/* Text Formatting */}
+                <button
+                  onClick={() => applyFormat('bold')}
+                  className="p-2 hover:bg-slate-200 rounded transition-colors"
+                  title="Bold"
+                >
+                  <Bold size={16} />
+                </button>
+                
+                <button
+                  onClick={() => applyFormat('italic')}
+                  className="p-2 hover:bg-slate-200 rounded transition-colors"
+                  title="Italic"
+                >
+                  <Italic size={16} />
+                </button>
+                
+                <button
+                  onClick={() => applyFormat('underline')}
+                  className="p-2 hover:bg-slate-200 rounded transition-colors"
+                  title="Underline"
+                >
+                  <Underline size={16} />
+                </button>
+                
+                <div className="w-px h-6 bg-slate-300 mx-2" />
+                
+                {/* Highlighters */}
+                <div className="flex items-center space-x-1">
+                  <Highlighter size={16} className="text-black" />
+                  <button
+                    onClick={() => applyHighlight('#FFE16D')}
+                    className="w-6 h-6 rounded border border-slate-300"
+                    style={{ backgroundColor: '#FFE16D' }}
+                    title="Yellow Highlight"
+                  />
+                  <button
+                    onClick={() => applyHighlight('#6EABC6')}
+                    className="w-6 h-6 rounded border border-slate-300"
+                    style={{ backgroundColor: '#6EABC6' }}
+                    title="Blue Highlight"
+                  />
+                  <button
+                    onClick={() => applyHighlight('#4ADE80')}
+                    className="w-6 h-6 rounded border border-slate-300"
+                    style={{ backgroundColor: '#4ADE80' }}
+                    title="Green Highlight"
+                  />
+                  <button
+                    onClick={() => applyHighlight('#FB923C')}
+                    className="w-6 h-6 rounded border border-slate-300"
+                    style={{ backgroundColor: '#FB923C' }}
+                    title="Orange Highlight"
+                  />
+                </div>
+                
+                <div className="w-px h-6 bg-slate-300 mx-2" />
+                
+                {/* Media */}
+                <button
+                  className="p-2 hover:bg-slate-200 rounded transition-colors"
+                  title="Add Image"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  <Image size={16} />
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'image');
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  className="p-2 hover:bg-slate-200 rounded transition-colors"
+                  title="Add Video"
+                  onClick={() => videoInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  <Video size={16} />
+                </button>
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'video');
+                    e.target.value = '';
+                  }}
+                />
+                {uploading && (
+                  <div className="ml-4 flex items-center space-x-2">
+                    <span className="text-xs text-black">Uploading...</span>
+                    <div className="w-16 h-1 bg-slate-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-black">{uploadProgress.toFixed(0)}%</span>
+                  </div>
+                )}
+                {uploadError && (
+                  <div className="ml-4 flex items-center space-x-2">
+                    <span className="text-xs text-red-600">{uploadError}</span>
+                    <button
+                      onClick={() => setUploadError(null)}
+                      className="text-xs text-black hover:text-black"
+                      title="Dismiss error"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                {/* Place the toggle switch at the end of the toolbar */}
+                <div className="ml-4 flex items-center rounded overflow-hidden border border-slate-300">
+                  <button
+                    className={`px-3 py-1 text-sm font-medium focus:outline-none transition-colors ${!drawingMode ? 'bg-blue-500 text-white' : 'bg-white text-slate-900'}`}
+                    onClick={() => setDrawingMode(false)}
+                    type="button"
+                    style={{ minWidth: 70 }}
+                  >
+                    ✍️ Writing
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-sm font-medium focus:outline-none transition-colors ${drawingMode ? 'bg-blue-500 text-white' : 'bg-white text-slate-900'}`}
+                    onClick={() => setDrawingMode(true)}
+                    type="button"
+                    style={{ minWidth: 70 }}
+                  >
+                    🖊️ Drawing
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Content Editor */}
+            <div className="relative" style={{ background: pageColor, minHeight: 600 }} ref={contentAreaRef}>
+              {/* Render freely placed media elements */}
+              {mediaElements.map(media => (
+                <div
+                  key={media.id}
+                  style={{
+                    position: 'absolute',
+                    left: media.x,
+                    top: media.y,
+                    width: media.width,
+                    height: media.height,
+                    zIndex: 20,
+                    cursor: 'move',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    borderRadius: 8,
+                    background: '#fff',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    userSelect: 'none',
+                    transform: `rotate(${media.rotation}deg)`,
+                    transformOrigin: 'center center'
+                  }}
+                  draggable
+                  onDragStart={e => {
+                    e.dataTransfer.setData('media-id', media.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setDragImage(e.currentTarget, media.width/2, media.height/2);
+                  }}
+                  onDragEnd={e => {
+                    const rect = e.currentTarget.parentElement?.getBoundingClientRect();
+                    if (rect) {
+                      updateMediaElement(media.id, {
+                        x: e.clientX - rect.left - media.width/2,
+                        y: e.clientY - rect.top - media.height/2
+                      });
+                    }
+                  }}
+                >
+                  {media.type === 'image' ? (
+                    <img
+                      src={media.url}
+                      alt="media"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'contain', 
+                        borderRadius: 8,
+                        transform: `rotate(-${media.rotation}deg)` // Counter-rotate the image to keep it upright
+                      }}
+                      onLoad={(e) => {
+                        // Set aspect ratio based on actual image dimensions
+                        const img = e.target as HTMLImageElement;
+                        if (img.naturalWidth && img.naturalHeight) {
+                          const aspectRatio = img.naturalWidth / img.naturalHeight;
+                          updateMediaElement(media.id, { aspectRatio });
+                        }
+                      }}
+                    />
+                  ) : (
+                    <video
+                      src={media.url}
+                      controls
+                      muted={false}
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        borderRadius: 8,
+                        transform: `rotate(-${media.rotation}deg)` // Counter-rotate the video to keep it upright
+                      }}
+                    />
+                  )}
+                  
+                  {/* Control buttons */}
+                  <div className="absolute top-1 right-1 flex gap-1">
+                    {/* Rotate button */}
+                    <button
+                      className="text-xs text-black hover:text-blue-500 bg-white bg-opacity-80 rounded px-1"
+                      style={{ border: 'none', cursor: 'pointer', zIndex: 30 }}
+                      onClick={() => rotateMedia(media.id, 90)}
+                      title="Rotate 90°"
+                    >
+                      🔄
+                    </button>
+                    
+                    {/* Remove button */}
+                    <button
+                      className="text-xs text-black hover:text-red-500 bg-white bg-opacity-80 rounded px-1"
+                      style={{ border: 'none', cursor: 'pointer', zIndex: 30 }}
+                      onClick={() => removeMediaElement(media.id)}
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  
+                  {/* Resize handles */}
+                  <div
+                    className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+                    style={{ zIndex: 30 }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      const startX = e.clientX;
+                      const startY = e.clientY;
+                      const startWidth = media.width;
+                      const startHeight = media.height;
+                      
+                      const handleMouseMove = (moveEvent: MouseEvent) => {
+                        const deltaX = moveEvent.clientX - startX;
+                        const deltaY = moveEvent.clientY - startY;
+                        
+                        let newWidth = startWidth + deltaX;
+                        let newHeight = startHeight + deltaY;
+                        
+                        // Maintain aspect ratio if it exists
+                        if (media.aspectRatio) {
+                          if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                            newHeight = newWidth / media.aspectRatio;
+                          } else {
+                            newWidth = newHeight * media.aspectRatio;
+                          }
+                        }
+                        
+                        // Minimum size
+                        newWidth = Math.max(50, newWidth);
+                        newHeight = Math.max(50, newHeight);
+                        
+                        resizeMedia(media.id, newWidth, newHeight);
+                      };
+                      
+                      const handleMouseUp = () => {
+                        document.removeEventListener('mousemove', handleMouseMove);
+                        document.removeEventListener('mouseup', handleMouseUp);
+                      };
+                      
+                      document.addEventListener('mousemove', handleMouseMove);
+                      document.addEventListener('mouseup', handleMouseUp);
+                    }}
+                  >
+                    <div className="w-full h-full bg-blue-500 bg-opacity-50 rounded-bl"></div>
+                  </div>
+                </div>
+              ))}
+              {/* Lined or blank background */}
+              {pageStyle === 'lined' && (
+                <div 
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    backgroundImage: `repeating-linear-gradient(
+                      transparent,
+                      transparent 30px,
+                      ${lineColor} 30px,
+                      ${lineColor} 32px
+                    )`,
+                    backgroundPosition: '0 20px',
+                    zIndex: 1,
+                    opacity: 0.7
+                  }}
+                />
+              )}
+              {/* Sticky notes */}
+              {stickies.map(sticky => (
+                <div
+                  key={sticky.id}
+                  style={{
+                    position: 'absolute',
+                    left: sticky.x,
+                    top: sticky.y,
+                    background: sticky.color,
+                    minWidth: 120,
+                    minHeight: 80,
+                    zIndex: 10,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    borderRadius: 8,
+                    padding: 8,
+                    cursor: 'move',
+                    userSelect: 'none'
+                  }}
+                  draggable
+                  onDragStart={e => {
+                    e.dataTransfer.setData('text/plain', sticky.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setDragImage(e.currentTarget, 60, 40);
+                  }}
+                  onDragEnd={e => {
+                    const rect = e.currentTarget.parentElement?.getBoundingClientRect();
+                    if (rect) {
+                      updateSticky(sticky.id, {
+                        x: e.clientX - rect.left - 60,
+                        y: e.clientY - rect.top - 20
+                      });
+                    }
+                  }}
+                >
+                  <textarea
+                    value={sticky.text}
+                    onChange={e => updateSticky(sticky.id, { text: e.target.value })}
+                    className="w-full h-full bg-transparent resize-none outline-none text-sm"
+                    style={{ minHeight: 60 }}
+                    placeholder="Sticky note..."
+                  />
+                  <button
+                    className="absolute top-1 right-1 text-black hover:text-red-500"
+                    onClick={() => removeSticky(sticky.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    aria-label="Remove sticky"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {/* Custom placeholder for contentEditable */}
+              {content === '' && (
+                <span className="absolute left-6 top-6 text-black pointer-events-none select-none" style={{fontFamily: 'Georgia, serif', fontSize: '16px', lineHeight: '32px', zIndex: 2}}>
+                  Start writing your thoughts...
+                </span>
+              )}
+              <div
+                ref={contentRef}
+                contentEditable={!drawingMode}
+                onInput={handleContentChange}
+                onPaste={handleContentChange}
+                className="min-h-[500px] p-6 outline-none text-black leading-relaxed"
+                style={{
+                  fontFamily: 'Georgia, serif',
+                  fontSize: '16px',
+                  lineHeight: '32px',
+                  position: 'relative',
+                  zIndex: 2,
+                  background: 'none',
+                  pointerEvents: drawingMode ? 'none' : 'auto',
+                  opacity: drawingMode ? 0.7 : 1
+                }}
+              />
+              {drawingMode && (
+                <JournalDrawingOverlay
+                  visible={drawingMode}
+                  width={contentAreaRef.current?.offsetWidth || 800}
+                  height={contentAreaRef.current?.offsetHeight || 600}
+                  tool={drawTool}
+                  color={drawColor}
+                  size={drawSize}
+                  opacity={drawOpacity}
+                  lines={drawLines}
+                  setLines={setDrawLines}
+                  onUndo={handleDrawUndo}
+                  onRedo={handleDrawRedo}
+                  onClear={handleDrawClear}
+                  canUndo={drawLines.length > 0}
+                  canRedo={drawHistory.length > 0}
+                  onClose={() => setDrawingMode(false)}
+                  onSave={setDrawingData}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -68,17 +68,17 @@ const HomePage: React.FC = () => {
     {
       url: '/assets/HBG1.gif',
       type: 'gif',
-      label: 'Pixel Sunset (Default)'
+      label: 'Valley Sunset (Default)'
     },
     {
       url: '/assets/HBG2.gif',
       type: 'gif',
-      label: 'Dreamy Sky'
+      label: 'Cat in the Rain'
     },
     {
       url: '/assets/HBG3.gif',
       type: 'gif',
-      label: 'Animated Forest'
+      label: 'Bonfire'
     }
   ];
   
@@ -272,15 +272,15 @@ const HomePage: React.FC = () => {
               </GlassCard>
 
               {/* Time Capsule Introduction Card */}
-              <GlassCard className="p-6 mb-6 bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200">
+              <GlassCard className="p-6 mb-6">
                 <div className="text-center">
                   <div className="flex items-center justify-center mb-3">
-                    <Clock size={32} className="text-purple-600" />
+                    <Clock size={32} className="text-black-000" />
                   </div>
-                  <h3 className="text-lg font-semibold text-purple-900 mb-2">
+                  <h3 className="text-lg font-semibold text-black-000 mb-2">
                     Introducing Time Capsule Journals
                   </h3>
-                  <p className="text-sm text-purple-700 mb-4">
+                  <p className="text-sm text-black-000 mb-4">
                     Write journal entries to your future self and set them to open on a specific date and time.
                   </p>
                   <Button 
@@ -400,7 +400,11 @@ const HomePage: React.FC = () => {
                             </span>
                           </div>
                           <p className="text-slate-900 line-clamp-3 mb-4">
-                            {entry.content.replace(/<[^>]*>/g, '')}
+                            {(() => {
+                              const plain = entry.content.replace(/<[^>]*>/g, '');
+                              const firstLine = plain.split(/\r?\n|\./)[0];
+                              return firstLine;
+                            })()}
                           </p>
                           {entry.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2">
@@ -442,7 +446,11 @@ const HomePage: React.FC = () => {
                           {entryForDate.title}
                         </h4>
                         <p className="text-slate-900 line-clamp-4">
-                          {entryForDate.content.replace(/<[^>]*>/g, '')}
+                          {(() => {
+                            const plain = entryForDate.content.replace(/<[^>]*>/g, '');
+                            const firstLine = plain.split(/\r?\n|\./)[0];
+                            return firstLine;
+                          })()}
                         </p>
                       </div>
                     ) : (
@@ -536,7 +544,7 @@ const HomePage: React.FC = () => {
                   <input
                     type="file"
                     accept="image/*,image/gif"
-                    onChange={e => {
+                    onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
                         const reader = new FileReader();

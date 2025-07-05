@@ -5,6 +5,8 @@ import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
 import JournalPage from './pages/JournalPage';
+import TimeCapsuleListPage from './pages/TimeCapsuleListPage';
+import TimeCapsulePage from './pages/TimeCapsulePage';
 
 function App() {
   const { isAuthenticated, isLoading, initialize, user } = useAuthStore();
@@ -49,6 +51,14 @@ function App() {
         <Route 
           path="/journal" 
           element={isAuthenticated ? <JournalPage /> : <Navigate to="/auth" />} 
+        />
+        <Route 
+          path="/time-capsules" 
+          element={isAuthenticated ? <TimeCapsuleListPage /> : <Navigate to="/auth" />} 
+        />
+        <Route 
+          path="/time-capsule" 
+          element={isAuthenticated ? <TimeCapsulePage /> : <Navigate to="/auth" />} 
         />
         
         {/* Catch all - redirect to landing */}

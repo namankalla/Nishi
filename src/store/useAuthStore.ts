@@ -37,8 +37,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await signInWithEmailAndPassword(auth, email, password);
       // Do not set user/isAuthenticated here; let onAuthStateChanged handle it
     } catch (error: any) {
+      let message = error.message || 'Failed to sign in';
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        message = 'Invalid email or password. Please try again.';
+      }
       set({ 
-        error: error.message || 'Failed to sign in', 
+        error: message, 
         isLoading: false 
       });
       throw error;
@@ -60,8 +64,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       // Do not set user/isAuthenticated here; let onAuthStateChanged handle it
     } catch (error: any) {
+      let message = error.message || 'Failed to create account';
+      if (error.code === 'auth/email-already-in-use') {
+        message = 'This email is already in use. Please use a different email or sign in.';
+      }
       set({ 
-        error: error.message || 'Failed to create account', 
+        error: message, 
         isLoading: false 
       });
       throw error;

@@ -141,7 +141,7 @@ const TimeCapsuleListPage: React.FC = () => {
                 <Clock size={32} style={{ color: colors.primary }} />
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900">Time Capsules</h1>
-                  <p className="text-sm text-slate-600">Messages to your future self</p>
+                  <p className="text-sm text-black">Messages to your future self</p>
                 </div>
               </div>
               {/* Actions */}
@@ -279,7 +279,7 @@ const TimeCapsuleListPage: React.FC = () => {
                               <h3 className="text-lg font-semibold text-slate-900 group-hover:text-slate-700 mb-1">
                                 {capsule.title}
                               </h3>
-                              <div className="flex items-center space-x-4 text-sm text-slate-600">
+                              <div className="flex items-center space-x-4 text-sm text-black">
                                 <span>Opens: {format(new Date(capsule.openDate), 'MMM d, yyyy')}</span>
                                 <span>Created: {format(new Date(capsule.createdAt), 'MMM d, yyyy')}</span>
                               </div>
@@ -300,7 +300,7 @@ const TimeCapsuleListPage: React.FC = () => {
                           </p>
                           
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-4 text-xs text-slate-500">
+                            <div className="flex items-center space-x-4 text-xs text-black">
                               {capsule.mood && (
                                 <span>Mood: {capsule.mood}</span>
                               )}
@@ -309,7 +309,7 @@ const TimeCapsuleListPage: React.FC = () => {
                               )}
                             </div>
                             
-                            <div className="flex items-center space-x-2 text-xs text-slate-500">
+                            <div className="flex items-center space-x-2 text-xs text-black">
                               {capsule.mediaElements && capsule.mediaElements.length > 0 && (
                                 <span>{capsule.mediaElements.length} media</span>
                               )}

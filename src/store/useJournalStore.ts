@@ -31,6 +31,7 @@ export interface JournalEntry {
   weather?: string;
   mediaElements?: any[];
   stickies?: any[];
+  drawingData?: any;
 }
 
 interface JournalState {
@@ -121,7 +122,8 @@ export const useJournalStore = create<JournalState & {
         mood: entryData.mood,
         weather: entryData.weather,
         mediaElements: entryData.mediaElements || [],
-        stickies: entryData.stickies || []
+        stickies: entryData.stickies || [],
+        drawingData: entryData.drawingData
       };
       
       console.log('[NISHI DEBUG] Creating entry with data:', entry);
