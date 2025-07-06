@@ -9,7 +9,86 @@ import GlassCard from '../components/ui/GlassCard';
 
 const DEFAULT_BG = '/assets/pixel-sunset.gif';
 
-const LoginForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: string | null; signIn: (email: string, password: string) => Promise<void>; navigateBack: () => void }> = ({ onSwitch, isLoading, error, signIn, navigateBack }) => {
+const ForgotPasswordForm: React.FC<{ onSwitchToLogin: () => void; isLoading: boolean; error: string | null; resetPassword: (email: string) => Promise<void>; }> = ({ onSwitchToLogin, isLoading, error, resetPassword }) => {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setLocalError(null);
+    try {
+      await resetPassword(email);
+      setSent(true);
+    } catch (err: any) {
+      setLocalError(err?.message || 'Failed to send reset email');
+      setSent(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <GlassCard className="max-w-md w-full space-y-8 text-text">
+      <Button
+        onClick={onSwitchToLogin}
+        variant="ghost"
+        size="sm"
+        className="p-2 mb-2 self-start"
+      >
+        <ArrowLeft size={16} className="mr-2" />
+        Back to sign in
+      </Button>
+      <div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold">Forgot Password</h2>
+        <p className="mt-2 text-center text-sm text-textSecondary">
+          Enter your email address and we'll send you a link to reset your password.
+        </p>
+      </div>
+      {error && (
+        <div className="bg-red-100 text-red-800 p-4 rounded-md mb-4 w-full text-center">{error}</div>
+      )}
+      {localError && (
+        <div className="bg-red-100 text-red-800 p-4 rounded-md mb-4 w-full text-center">{localError}</div>
+      )}
+      {sent && !localError && !error && (
+        <div className="bg-green-100 text-green-800 p-4 rounded-md mb-4 w-full text-center">Password reset email sent! Check your inbox.</div>
+      )}
+      <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <div className="-space-y-px rounded-md shadow-sm">
+          <div>
+            <label htmlFor="reset-email-address" className="sr-only">Email address</label>
+            <input
+              id="reset-email-address"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className="relative block w-full appearance-none rounded-md border border-border bg-white px-3 py-2 text-slate-900 placeholder-slate-500 focus:z-10 focus:border-primary focus:outline-none focus:ring-primary sm:text-sm"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+        </div>
+        <div>
+          <Button
+            type="submit"
+            isLoading={isLoading || loading}
+            fullWidth
+            className="group relative flex w-full justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          >
+            {isLoading || loading ? 'Sending...' : 'Send Reset Link'}
+          </Button>
+        </div>
+      </form>
+    </GlassCard>
+  );
+};
+
+const LoginForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: string | null; signIn: (email: string, password: string) => Promise<void>; navigateBack: () => void; forgotPassword: () => void }> = ({ onSwitch, isLoading, error, signIn, navigateBack, forgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -83,6 +162,15 @@ const LoginForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: str
           </Button>
         </div>
       </form>
+      <div className="w-full flex justify-end mt-2">
+        <button
+          type="button"
+          className="text-sm text-primary hover:underline"
+          onClick={forgotPassword}
+        >
+          Forgot password?
+        </button>
+      </div>
     </GlassCard>
   );
 };
@@ -181,11 +269,11 @@ const SignupForm: React.FC<{ onSwitch: () => void; isLoading: boolean; error: st
 
 const AuthPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signIn, signUp, error, isLoading } = useAuthStore();
+  const { signIn, signUp, resetPassword, error, isLoading } = useAuthStore();
   const { getThemeClasses } = useThemeStore();
   const { text, accent, font } = getThemeClasses();
   const [backgroundUrl, setBackgroundUrl] = useState<string>(DEFAULT_BG);
-  const [isLogin, setIsLogin] = useState(true);
+  const [formType, setFormType] = useState<'login' | 'signup' | 'forgot'>('login');
   const [dragActive, setDragActive] = useState(false);
 
   // Drag and drop handlers
@@ -232,7 +320,7 @@ const AuthPage: React.FC = () => {
       onDrop={handleDrop}
     >
       {/* Drag and drop overlay (only before login) */}
-      {isLogin && dragActive && (
+      {formType === 'login' && dragActive && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 pointer-events-none select-none">
           <div className="bg-white/80 text-lg font-semibold px-8 py-6 rounded-2xl shadow-xl border border-white/40 backdrop-blur-lg">
             Drop an image here to set as background
@@ -240,21 +328,31 @@ const AuthPage: React.FC = () => {
         </div>
       )}
       <div className="relative z-20 w-full max-w-md flex flex-col items-center">
-        {isLogin ? (
+        {formType === 'login' && (
           <LoginForm
-            onSwitch={() => setIsLogin(false)}
+            onSwitch={() => setFormType('signup')}
             isLoading={isLoading}
             error={error}
             signIn={signIn}
             navigateBack={() => navigate('/')}
+            forgotPassword={() => setFormType('forgot')}
           />
-        ) : (
+        )}
+        {formType === 'signup' && (
           <SignupForm
-            onSwitch={() => setIsLogin(true)}
+            onSwitch={() => setFormType('login')}
             isLoading={isLoading}
             error={error}
             signUp={signUp}
             navigateBack={() => navigate('/')}
+          />
+        )}
+        {formType === 'forgot' && (
+          <ForgotPasswordForm
+            onSwitchToLogin={() => setFormType('login')}
+            isLoading={isLoading}
+            error={error}
+            resetPassword={resetPassword}
           />
         )}
       </div>
