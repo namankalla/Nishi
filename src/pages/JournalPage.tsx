@@ -1110,6 +1110,12 @@ const JournalPage: React.FC = () => {
                     style={{ backgroundColor: '#FB923C' }}
                     title="Orange Highlight"
                   />
+                  <button
+                    onClick={() => applyHighlight('#F472B6')}
+                    className="w-6 h-6 rounded border border-slate-300"
+                    style={{ backgroundColor: '#F472B6' }}
+                    title="Pink Highlight"
+                  />
                 </div>
                 
                 <div className="w-px h-6 bg-slate-300 mx-2" />
