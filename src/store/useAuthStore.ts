@@ -23,6 +23,7 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   clearError: () => void;
   initialize: () => void;
+  updateDisplayName: (displayName: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -114,6 +115,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false
       });
     });
+  },
+
+  updateDisplayName: async (displayName: string) => {
+    const { user } = get();
+    if (!user) throw new Error('No user logged in');
+    set({ isLoading: true, error: null });
+    try {
+      await updateProfile(user, { displayName });
+      // Update Firestore user document as well
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: user.email,
+        displayName: displayName
+      }, { merge: true });
+      // Update local user state
+      set({ user: { ...user, displayName }, isLoading: false });
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to update display name', isLoading: false });
+      throw error;
+    }
   }
 }));
 
