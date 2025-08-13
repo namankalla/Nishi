@@ -25,6 +25,7 @@ export interface TimeCapsule {
   weather?: string;
   mediaElements?: any[];
   stickies?: any[];
+  drawingData?: any;
   isOpened?: boolean;
 }
 
@@ -146,6 +147,7 @@ export const useTimeCapsuleStore = create<TimeCapsuleState>((set, get) => ({
         weather: capsuleData.weather,
         mediaElements: capsuleData.mediaElements || [],
         stickies: capsuleData.stickies || [],
+        drawingData: capsuleData.drawingData,
         isOpened: false
       };
       
