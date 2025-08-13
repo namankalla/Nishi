@@ -16,16 +16,18 @@ import {
   Image,
   Video,
   Smile,
-  Calendar,
   Cloud,
   Clock,
   Lock,
-  Unlock
+  Unlock,
+  RotateCcw,
+  RotateCw
 } from 'lucide-react';
-import { format, addDays, isBefore, isAfter } from 'date-fns';
+import { format, addDays, isBefore } from 'date-fns';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../config/firebase';
 import GlassCard from '../components/ui/GlassCard';
+import JournalDrawingOverlay from '../components/ui/JournalDrawingOverlay';
 
 const PAGE_COLORS = [
   { name: 'White', value: '#fff' },
@@ -75,6 +77,7 @@ const TimeCapsulePage: React.FC = () => {
   const [isLocked, setIsLocked] = useState(false);
   
   const contentRef = useRef<HTMLDivElement>(null);
+  const contentAreaRef = useRef<HTMLDivElement>(null);
   const colors = getThemeColors();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +95,72 @@ const TimeCapsulePage: React.FC = () => {
     pageColor === '#fff' ? '#222' : LINE_COLORS[0].value
   );
 
+  // Drawing state
+  const [drawingMode, setDrawingMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const lastMode = localStorage.getItem('timecapsule-last-mode');
+      return lastMode === 'drawing';
+    }
+    return false;
+  });
+  const [drawingData, setDrawingData] = useState<any>(null);
+  const [drawTool, setDrawTool] = useState<'pen' | 'eraser'>('pen');
+  const [drawColor, setDrawColor] = useState('#000000');
+  const [drawSize, setDrawSize] = useState(4);
+  const [drawLines, setDrawLines] = useState<any[]>(drawingData || []);
+  const [drawHistory, setDrawHistory] = useState<any[]>([]);
+  const [drawOpacity, setDrawOpacity] = useState(1);
+  const [quickColors, setQuickColors] = useState([
+    '#000000',
+    '#3b82f6',
+    '#ef4444',
+    '#22c55e',
+    '#f59e42'
+  ]);
+  const setQuickColor = (idx: number, color: string) => {
+    setQuickColors(qcs => qcs.map((c, i) => i === idx ? color : c));
+  };
+  const [drawingCardPos, setDrawingCardPos] = useState({ x: 32, y: 120 });
+  const [drawingCardDragging, setDrawingCardDragging] = useState(false);
+  const [drawingCardOffset, setDrawingCardOffset] = useState({ x: 0, y: 0 });
+  const [drawingCardMinimized, setDrawingCardMinimized] = useState(false);
+  const handleDrawingCardMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setDrawingCardDragging(true);
+    setDrawingCardOffset({ x: e.clientX - drawingCardPos.x, y: e.clientY - drawingCardPos.y });
+  };
+  useEffect(() => {
+    if (!drawingCardDragging) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      setDrawingCardPos({ x: e.clientX - drawingCardOffset.x, y: e.clientY - drawingCardOffset.y });
+    };
+    const handleMouseUp = () => setDrawingCardDragging(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [drawingCardDragging, drawingCardOffset]);
+
+  const handleDrawUndo = () => {
+    if (drawLines.length === 0) return;
+    setDrawHistory([drawLines[drawLines.length - 1], ...drawHistory]);
+    setDrawLines(drawLines.slice(0, -1));
+  };
+  const handleDrawRedo = () => {
+    if (drawHistory.length === 0) return;
+    setDrawLines([...drawLines, drawHistory[0]]);
+    setDrawHistory(drawHistory.slice(1));
+  };
+  const handleDrawClear = () => {
+    setDrawLines([]);
+    setDrawHistory([]);
+  };
+  const handleDrawSave = () => {
+    setDrawingData(drawLines);
+    setDrawingMode(false);
+  };
+
   // Check if the capsule can be opened
   const canOpen = currentCapsule ? !isBefore(new Date(), new Date(currentCapsule.openDate)) : true;
   
@@ -108,6 +177,8 @@ const TimeCapsulePage: React.FC = () => {
       setMood(currentCapsule.mood || '');
       setWeather(currentCapsule.weather || '');
       setIsLocked(!canOpen);
+      setDrawingData(currentCapsule.drawingData || []);
+      setDrawLines(currentCapsule.drawingData || []);
       
       if (currentCapsule.mediaElements) {
         setMediaElements(currentCapsule.mediaElements);
@@ -140,6 +211,8 @@ const TimeCapsulePage: React.FC = () => {
       setMediaElements([]);
       setStickies([]);
       setIsLocked(false);
+      setDrawingData([]);
+      setDrawLines([]);
       
       if (contentRef.current) {
         contentRef.current.innerHTML = '';
@@ -174,6 +247,18 @@ const TimeCapsulePage: React.FC = () => {
     handleContentChange();
   };
 
+  // Media manipulation helpers
+  const resizeMedia = (id: number, newWidth: number, newHeight: number) => {
+    if (isLocked) return;
+    setMediaElements(prev => prev.map(m => m.id === id ? { ...m, width: newWidth, height: newHeight } : m));
+    setIsModified(true);
+  };
+  const rotateMedia = (id: number, angle: number) => {
+    if (isLocked) return;
+    setMediaElements(prev => prev.map(m => m.id === id ? { ...m, rotation: (m.rotation + angle) % 360 } : m));
+    setIsModified(true);
+  };
+
   const handleSave = async () => {
     if (!user) return;
     
@@ -187,7 +272,8 @@ const TimeCapsulePage: React.FC = () => {
       mood,
       weather,
       mediaElements: mediaElements,
-      stickies: stickies
+      stickies: stickies,
+      drawingData: drawingData
     };
     
     try {
@@ -465,8 +551,146 @@ const TimeCapsulePage: React.FC = () => {
       )}
       
       {/* Editor */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {!isLocked && (
+        <div className="max-w-4xl mx-auto px-4 py-8" style={{ position: 'relative' }}>
+          {!isLocked && drawingMode && (
+            <div
+              style={{
+                position: 'fixed',
+                left: drawingCardPos.x,
+                top: drawingCardPos.y,
+                zIndex: 1100,
+                cursor: drawingCardDragging ? 'grabbing' : 'grab',
+                minWidth: drawingCardMinimized ? 120 : 224,
+                minHeight: drawingCardMinimized ? 40 : undefined,
+                transition: 'box-shadow 0.2s',
+                userSelect: 'none',
+              }}
+              onMouseDown={handleDrawingCardMouseDown}
+            >
+              <GlassCard
+                className={`flex flex-col gap-4 items-center p-4 shadow-xl backdrop-blur-lg border border-white/30 ${drawingCardMinimized ? 'py-2 px-3' : ''}`}
+                style={{ pointerEvents: 'auto', background: 'transparent' }}
+              >
+                <div className="w-full flex items-center justify-between mb-2">
+                  <div className="font-bold text-sm">Drawing Tools</div>
+                  <button
+                    className="ml-2 text-lg text-slate-700 hover:text-blue-600 focus:outline-none"
+                    onClick={e => { e.stopPropagation(); setDrawingCardMinimized(m => !m); }}
+                    title={drawingCardMinimized ? 'Expand' : 'Minimize'}
+                    type="button"
+                  >
+                    {drawingCardMinimized ? '▣' : '—'}
+                  </button>
+                </div>
+                {!drawingCardMinimized && <>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      className={`p-2 rounded-full border ${drawTool === 'pen' ? 'bg-blue-200 border-blue-500' : 'bg-white border-slate-300'}`}
+                      onClick={() => setDrawTool('pen')}
+                      title="Pen"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className={`p-2 rounded-full border ${drawTool === 'eraser' ? 'bg-blue-200 border-blue-500' : 'bg-white border-slate-300'}`}
+                      onClick={() => setDrawTool('eraser')}
+                      title="Eraser"
+                    >
+                      🧽
+                    </button>
+                  </div>
+                  <div className="mb-2 w-full">
+                    <div className="text-xs mb-1">Color</div>
+                    <div className="flex gap-2 items-center justify-center">
+                      {quickColors.map((color, idx) => (
+                        <div key={idx} className="flex flex-col items-center">
+                          <button
+                            type="button"
+                            className={`w-8 h-8 rounded-full border-2 ${drawColor === color ? 'border-blue-500 ring-2 ring-blue-300' : 'border-slate-300'}`}
+                            style={{ background: color }}
+                            onClick={() => setDrawColor(color)}
+                            disabled={drawTool === 'eraser'}
+                            title={idx === 0 ? 'Current Color' : `Quick Color ${idx}`}
+                          />
+                          <input
+                            type="color"
+                            value={color}
+                            onChange={e => idx === 0 ? setDrawColor(e.target.value) : setQuickColor(idx, e.target.value)}
+                            className="w-6 h-6 mt-1 border border-slate-300 rounded cursor-pointer"
+                            style={{ padding: 0 }}
+                            title={idx === 0 ? 'Set Current Color' : `Set Quick Color ${idx}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mb-2 w-full">
+                    <div className="text-xs mb-1">Brush Size</div>
+                    <input
+                      type="range"
+                      min={2}
+                      max={32}
+                      step={2}
+                      value={drawSize}
+                      onChange={e => setDrawSize(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="text-xs text-center">{drawSize}px</div>
+                  </div>
+                  <div className="mb-2 w-full">
+                    <div className="text-xs mb-1">Opacity</div>
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={1}
+                      step={0.01}
+                      value={drawOpacity}
+                      onChange={e => setDrawOpacity(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="text-xs text-center">{Math.round(drawOpacity * 100)}%</div>
+                  </div>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={handleDrawUndo}
+                      disabled={drawLines.length === 0}
+                      title="Undo"
+                      className="p-2 rounded-full bg-slate-100 hover:bg-blue-100 border border-slate-300 disabled:opacity-50 transition"
+                      style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+                    >
+                      <RotateCcw size={20} className="text-blue-600" />
+                    </button>
+                    <button
+                      onClick={handleDrawRedo}
+                      disabled={drawHistory.length === 0}
+                      title="Redo"
+                      className="p-2 rounded-full bg-slate-100 hover:bg-green-100 border border-slate-300 disabled:opacity-50 transition"
+                      style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+                    >
+                      <RotateCw size={20} className="text-green-600" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to clear your drawing? This cannot be undone.')) {
+                          handleDrawClear();
+                        }
+                      }}
+                      title="Clear"
+                      className="p-2 rounded-full bg-slate-100 hover:bg-red-100 border border-slate-300 transition"
+                      style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
+                    >
+                      <Trash2 size={20} className="text-red-600" />
+                    </button>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={handleDrawSave} className="px-3 py-1 rounded bg-blue-500 text-white font-bold">Save</button>
+                    <button onClick={() => setDrawingMode(false)} className="px-3 py-1 rounded bg-slate-200">Close</button>
+                  </div>
+                </>}
+              </GlassCard>
+            </div>
+          )}
+          {!isLocked && (
           <GlassCard className="mb-6 flex flex-wrap gap-4 items-center">
             <div className="flex items-center gap-2">
               <span className="text-sm text-black">Page Color:</span>
@@ -747,12 +971,36 @@ const TimeCapsulePage: React.FC = () => {
                     </button>
                   </div>
                 )}
+                <div className="ml-4 flex items-center rounded overflow-hidden border border-slate-300">
+                  <button
+                    className={`px-3 py-1 text-sm font-medium focus:outline-none transition-colors ${!drawingMode ? 'bg-blue-500 text-white' : 'bg-white text-slate-900'}`}
+                    onClick={() => {
+                      setDrawingMode(false);
+                      localStorage.setItem('timecapsule-last-mode', 'writing');
+                    }}
+                    type="button"
+                    style={{ minWidth: 70 }}
+                  >
+                    ✍️ Writing
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-sm font-medium focus:outline-none transition-colors ${drawingMode ? 'bg-blue-500 text-white' : 'bg-white text-slate-900'}`}
+                    onClick={() => {
+                      setDrawingMode(true);
+                      localStorage.setItem('timecapsule-last-mode', 'drawing');
+                    }}
+                    type="button"
+                    style={{ minWidth: 70 }}
+                  >
+                    🖊️ Drawing
+                  </button>
+                </div>
               </div>
             </div>
           )}
           
           {/* Content Editor */}
-          <div className="relative" style={{ background: pageColor, minHeight: 600 }}>
+          <div className="relative" style={{ background: pageColor, minHeight: 600 }} ref={contentAreaRef}>
             {/* Media elements */}
             {mediaElements.map(media => (
               <div
@@ -800,6 +1048,13 @@ const TimeCapsulePage: React.FC = () => {
                       borderRadius: 8,
                       transform: `rotate(-${media.rotation}deg)`
                     }}
+                    onLoad={(e) => {
+                      const img = e.target as HTMLImageElement;
+                      if (img.naturalWidth && img.naturalHeight) {
+                        const aspectRatio = img.naturalWidth / img.naturalHeight;
+                        updateMediaElement(media.id, { aspectRatio });
+                      }
+                    }}
                   />
                 ) : (
                   <video
@@ -818,6 +1073,14 @@ const TimeCapsulePage: React.FC = () => {
                 {!isLocked && (
                   <div className="absolute top-1 right-1 flex gap-1">
                     <button
+                      className="text-xs text-black hover:text-blue-500 bg-white bg-opacity-80 rounded px-1"
+                      style={{ border: 'none', cursor: 'pointer', zIndex: 30 }}
+                      onClick={() => rotateMedia(media.id, 90)}
+                      title="Rotate 90°"
+                    >
+                      🔄
+                    </button>
+                    <button
                       className="text-xs text-slate-500 hover:text-red-500 bg-white bg-opacity-80 rounded px-1"
                       style={{ border: 'none', cursor: 'pointer', zIndex: 30 }}
                       onClick={() => removeMediaElement(media.id)}
@@ -825,6 +1088,44 @@ const TimeCapsulePage: React.FC = () => {
                     >
                       ×
                     </button>
+                  </div>
+                )}
+
+                {!isLocked && (
+                  <div
+                    className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+                    style={{ zIndex: 30 }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      const startX = e.clientX;
+                      const startY = e.clientY;
+                      const startWidth = media.width;
+                      const startHeight = media.height;
+                      const handleMouseMove = (moveEvent: MouseEvent) => {
+                        const deltaX = moveEvent.clientX - startX;
+                        const deltaY = moveEvent.clientY - startY;
+                        let newWidth = startWidth + deltaX;
+                        let newHeight = startHeight + deltaY;
+                        if (media.aspectRatio) {
+                          if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                            newHeight = newWidth / media.aspectRatio;
+                          } else {
+                            newWidth = newHeight * media.aspectRatio;
+                          }
+                        }
+                        newWidth = Math.max(50, newWidth);
+                        newHeight = Math.max(50, newHeight);
+                        resizeMedia(media.id, newWidth, newHeight);
+                      };
+                      const handleMouseUp = () => {
+                        document.removeEventListener('mousemove', handleMouseMove);
+                        document.removeEventListener('mouseup', handleMouseUp);
+                      };
+                      document.addEventListener('mousemove', handleMouseMove);
+                      document.addEventListener('mouseup', handleMouseUp);
+                    }}
+                  >
+                    <div className="w-full h-full bg-blue-500 bg-opacity-50 rounded-bl"></div>
                   </div>
                 )}
               </div>
@@ -922,7 +1223,7 @@ const TimeCapsulePage: React.FC = () => {
                 )}
                 <div
                   ref={contentRef}
-                  contentEditable
+                  contentEditable={!drawingMode}
                   onInput={handleContentChange}
                   onPaste={handleContentChange}
                   className="min-h-[500px] p-6 outline-none text-slate-800 leading-relaxed"
@@ -932,9 +1233,31 @@ const TimeCapsulePage: React.FC = () => {
                     lineHeight: '32px',
                     position: 'relative',
                     zIndex: 2,
-                    background: 'none'
+                    background: 'none',
+                    pointerEvents: drawingMode ? 'none' : 'auto',
+                    opacity: drawingMode ? 0.7 : 1
                   }}
                 />
+                {drawingMode && (
+                  <JournalDrawingOverlay
+                    visible={drawingMode}
+                    width={contentAreaRef.current?.offsetWidth || 800}
+                    height={contentAreaRef.current?.offsetHeight || 600}
+                    tool={drawTool}
+                    color={drawColor}
+                    size={drawSize}
+                    opacity={drawOpacity}
+                    lines={drawLines}
+                    setLines={setDrawLines}
+                    onUndo={handleDrawUndo}
+                    onRedo={handleDrawRedo}
+                    onClear={handleDrawClear}
+                    canUndo={drawLines.length > 0}
+                    canRedo={drawHistory.length > 0}
+                    onClose={() => setDrawingMode(false)}
+                    onSave={setDrawingData}
+                  />
+                )}
               </>
             )}
           </div>
