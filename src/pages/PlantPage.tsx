@@ -297,6 +297,27 @@ const PlantPage: React.FC = () => {
               </div>
             )}
           </div>
+                              {/* Beta Version Notice */}
+          <div className="mt-8 text-center text-sm text-gray-700 bg-white/70 border border-gray-300 rounded-xl p-4 shadow-sm">
+            <p className="font-medium text-gray-800">
+              🚧 Beta Version Notice
+            </p>
+            <p className="mt-1">
+              This is the <span className="font-semibold">beta version</span> of the update. 
+              We are actively improving it, and <span className="font-semibold text-teal-700">your contributions are highly appreciated.</span>
+            </p>
+            <p className="mt-2">
+              At the moment, we are still <span className="italic">working on the visual designs for each plant species</span>. 
+              If you have creative ideas or would like to share your own designs, we’d love to collaborate!
+            </p>
+            <p className="mt-2">
+              Please feel free to contact us at: 
+              <a href="mailto:naman.d.kalla@gmail.com" className="text-teal-600 hover:underline ml-1">
+                naman.d.kalla@gmail.com
+              </a>
+            </p>
+          </div>
+
         </GardenGlassCard>
       </div>
       
