@@ -16,6 +16,7 @@ import {
   doc as firestoreDoc
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { useUserStore } from './useUserStore';
 
 export interface JournalEntry {
   id: string;
@@ -139,6 +140,8 @@ export const useJournalStore = create<JournalState & {
           currentEntry: newEntry,
           isLoading: false
         }));
+        // Award points for demo user
+        try { useUserStore.getState().incrementPoints(userId, 5); } catch {}
         return;
       }
       
@@ -159,6 +162,8 @@ export const useJournalStore = create<JournalState & {
         currentEntry: newEntry,
         isLoading: false
       }));
+      // Award points
+      try { useUserStore.getState().incrementPoints(userId, 5); } catch {}
     } catch (error: any) {
       set({ 
         error: error.message || 'Failed to create entry', 

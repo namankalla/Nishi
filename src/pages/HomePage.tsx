@@ -22,13 +22,15 @@ import {
   Clock,
   Lock,
   Unlock,
-  ArrowRight
+  ArrowRight,
+  User,
+  Leaf
 } from 'lucide-react';
 import { format, isBefore } from 'date-fns';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, signOut, isLoading: authLoading } = useAuthStore();
+  const { user, signOut, isLoading: authLoading, updateDisplayName, error: authError } = useAuthStore();
   const { 
     entries, 
     loadEntries, 
@@ -82,6 +84,10 @@ const HomePage: React.FC = () => {
     }
   ];
   
+  const [displayNameInput, setDisplayNameInput] = useState(user?.displayName || '');
+  const [displayNameStatus, setDisplayNameStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  
   useEffect(() => {
     console.log('[NISHI DEBUG] User:', user);
     console.log('[NISHI DEBUG] Entries:', entries);
@@ -91,6 +97,7 @@ const HomePage: React.FC = () => {
     if (user && capsules.length === 0) {
       loadCapsules(user.uid);
     }
+    setDisplayNameInput(user?.displayName || '');
   }, [user, entries.length, capsules.length]);
   
   // Set default homepage background if not set
@@ -140,6 +147,27 @@ const HomePage: React.FC = () => {
     { id: 'midnight', name: 'Midnight', color: '#253E4C' }
   ];
   
+  useEffect(() => {
+    setDisplayNameInput(user?.displayName || '');
+  }, [user?.displayName, showSettings]);
+  
+  const handleDisplayNameSave = async () => {
+    if (!displayNameInput.trim()) {
+      setDisplayNameError('Display name cannot be empty.');
+      return;
+    }
+    setDisplayNameStatus('saving');
+    setDisplayNameError(null);
+    try {
+      await updateDisplayName(displayNameInput.trim());
+      setDisplayNameStatus('success');
+      setTimeout(() => setDisplayNameStatus('idle'), 1500);
+    } catch (err: any) {
+      setDisplayNameStatus('error');
+      setDisplayNameError(err.message || 'Failed to update display name.');
+    }
+  };
+  
   // Loading guard: don't render HomePage until auth is ready
   if (authLoading) {
     return (
@@ -180,6 +208,10 @@ const HomePage: React.FC = () => {
                 <Button onClick={() => navigate('/time-capsules')} variant="secondary">
                   <Clock size={16} className="mr-2" />
                   Time Capsules
+                </Button>
+                <Button onClick={() => navigate('/garden')} variant="outline">
+                  <Leaf size={16} className="mr-2" />
+                  My Garden
                 </Button>
                 <button
                   onClick={() => setShowSettings(true)}
@@ -483,6 +515,36 @@ const HomePage: React.FC = () => {
           size="lg"
         >
           <div className="space-y-6">
+            {/* Display Name Update Section */}
+            <GlassCard className="p-6">
+              <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
+                <User size={20} className="mr-2" />
+                Display Name
+              </h4>
+              <div className="flex flex-col sm:flex-row gap-3 items-center">
+                <Input
+                  type="text"
+                  value={displayNameInput}
+                  onChange={e => setDisplayNameInput(e.target.value)}
+                  placeholder="Enter your display name"
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleDisplayNameSave}
+                  variant="primary"
+                  disabled={displayNameStatus === 'saving' || displayNameInput.trim() === user?.displayName}
+                >
+                  {displayNameStatus === 'saving' ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+              {displayNameStatus === 'success' && (
+                <div className="text-green-600 text-sm mt-2">Display name updated!</div>
+              )}
+              {displayNameError && (
+                <div className="text-red-600 text-sm mt-2">{displayNameError}</div>
+              )}
+            </GlassCard>
+            
             {/* Theme Selection */}
             <GlassCard className="p-6">
               <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">

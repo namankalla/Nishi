@@ -12,6 +12,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { useUserStore } from './useUserStore';
 
 export interface TimeCapsule {
   id: string;
@@ -25,6 +26,7 @@ export interface TimeCapsule {
   weather?: string;
   mediaElements?: any[];
   stickies?: any[];
+  drawingData?: any;
   isOpened?: boolean;
 }
 
@@ -146,6 +148,7 @@ export const useTimeCapsuleStore = create<TimeCapsuleState>((set, get) => ({
         weather: capsuleData.weather,
         mediaElements: capsuleData.mediaElements || [],
         stickies: capsuleData.stickies || [],
+        drawingData: capsuleData.drawingData,
         isOpened: false
       };
       
@@ -162,6 +165,8 @@ export const useTimeCapsuleStore = create<TimeCapsuleState>((set, get) => ({
           currentCapsule: newCapsule,
           isLoading: false
         }));
+        // Award points for demo user
+        try { useUserStore.getState().incrementPoints(userId, 10); } catch {}
         return;
       }
       
@@ -182,6 +187,8 @@ export const useTimeCapsuleStore = create<TimeCapsuleState>((set, get) => ({
         currentCapsule: newCapsule,
         isLoading: false
       }));
+      // Award points
+      try { useUserStore.getState().incrementPoints(userId, 10); } catch {}
     } catch (error: any) {
       console.error('[TIME CAPSULE] Create error:', error);
       set({ 

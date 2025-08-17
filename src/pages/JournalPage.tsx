@@ -649,7 +649,13 @@ const JournalPage: React.FC = () => {
     console.log('Added test media element:', newMediaElement);
   };
 
-  const [drawingMode, setDrawingMode] = useState(false);
+  const [drawingMode, setDrawingMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const lastMode = localStorage.getItem('journal-last-mode');
+      return lastMode === 'drawing';
+    }
+    return false;
+  });
   const [drawingData, setDrawingData] = useState<any>(currentEntry?.drawingData || []);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const [drawTool, setDrawTool] = useState<'pen' | 'eraser'>('pen');
@@ -692,6 +698,36 @@ const JournalPage: React.FC = () => {
   const setQuickColor = (idx: number, color: string) => {
     setQuickColors(qcs => qcs.map((c, i) => i === idx ? color : c));
   };
+
+  // Drawing actions
+  const [drawingCardPos, setDrawingCardPos] = useState({ x: 32, y: 120 });
+  const [drawingCardDragging, setDrawingCardDragging] = useState(false);
+  const [drawingCardOffset, setDrawingCardOffset] = useState({ x: 0, y: 0 });
+  const [drawingCardMinimized, setDrawingCardMinimized] = useState(false);
+
+  const handleDrawingCardMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setDrawingCardDragging(true);
+    setDrawingCardOffset({
+      x: e.clientX - drawingCardPos.x,
+      y: e.clientY - drawingCardPos.y
+    });
+  };
+  useEffect(() => {
+    if (!drawingCardDragging) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      setDrawingCardPos({
+        x: e.clientX - drawingCardOffset.x,
+        y: e.clientY - drawingCardOffset.y
+      });
+    };
+    const handleMouseUp = () => setDrawingCardDragging(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [drawingCardDragging, drawingCardOffset]);
 
   return (
     <div
@@ -753,112 +789,144 @@ const JournalPage: React.FC = () => {
       {/* Editor */}
       <div className="max-w-4xl mx-auto px-4 py-8" style={{ position: 'relative' }}>
         {drawingMode && (
-          <GlassCard className="fixed left-8 top-40 w-56 flex flex-col gap-4 items-center p-4 z-[1100] shadow-xl" style={{ pointerEvents: 'auto' }}>
-            <div className="font-bold mb-2">Drawing Tools</div>
-            <div className="flex gap-2 mb-2">
-              <button
-                className={`p-2 rounded-full border ${drawTool === 'pen' ? 'bg-blue-200 border-blue-500' : 'bg-white border-slate-300'}`}
-                onClick={() => setDrawTool('pen')}
-                title="Pen"
+          <div
+            style={{
+              position: 'fixed',
+              left: drawingCardPos.x,
+              top: drawingCardPos.y,
+              zIndex: 1100,
+              cursor: drawingCardDragging ? 'grabbing' : 'grab',
+              minWidth: drawingCardMinimized ? 120 : 224,
+              minHeight: drawingCardMinimized ? 40 : undefined,
+              transition: 'box-shadow 0.2s',
+              userSelect: 'none',
+            }}
+            onMouseDown={handleDrawingCardMouseDown}
+          >
+            <GlassCard
+              className={`flex flex-col gap-4 items-center p-4 shadow-xl backdrop-blur-lg border border-white/30 ${drawingCardMinimized ? 'py-2 px-3' : ''}`}
+              style={{ pointerEvents: 'auto', background: 'transparent' }}
+            >
+              <div
+                className="w-full flex items-center justify-between mb-2"
               >
-                ✏️
-              </button>
-              <button
-                className={`p-2 rounded-full border ${drawTool === 'eraser' ? 'bg-blue-200 border-blue-500' : 'bg-white border-slate-300'}`}
-                onClick={() => setDrawTool('eraser')}
-                title="Eraser"
-              >
-                🧽
-              </button>
-            </div>
-            <div className="mb-2 w-full">
-              <div className="text-xs mb-1">Color</div>
-              <div className="flex gap-2 items-center justify-center">
-                {quickColors.map((color, idx) => (
-                  <div key={idx} className="flex flex-col items-center">
-                    <button
-                      type="button"
-                      className={`w-8 h-8 rounded-full border-2 ${drawColor === color ? 'border-blue-500 ring-2 ring-blue-300' : 'border-slate-300'}`}
-                      style={{ background: color }}
-                      onClick={() => setDrawColor(color)}
-                      disabled={drawTool === 'eraser'}
-                      title={idx === 0 ? 'Current Color' : `Quick Color ${idx}`}
-                    />
-                    <input
-                      type="color"
-                      value={color}
-                      onChange={e => idx === 0 ? setDrawColor(e.target.value) : setQuickColor(idx, e.target.value)}
-                      className="w-6 h-6 mt-1 border border-slate-300 rounded cursor-pointer"
-                      style={{ padding: 0 }}
-                      title={idx === 0 ? 'Set Current Color' : `Set Quick Color ${idx}`}
-                    />
-                  </div>
-                ))}
+                <div className="font-bold text-sm">Drawing Tools</div>
+                <button
+                  className="ml-2 text-lg text-slate-700 hover:text-blue-600 focus:outline-none"
+                  onClick={e => { e.stopPropagation(); setDrawingCardMinimized(m => !m); }}
+                  title={drawingCardMinimized ? 'Expand' : 'Minimize'}
+                  type="button"
+                >
+                  {drawingCardMinimized ? '▣' : '—'}
+                </button>
               </div>
-            </div>
-            <div className="mb-2 w-full">
-              <div className="text-xs mb-1">Brush Size</div>
-              <input
-                type="range"
-                min={2}
-                max={32}
-                step={2}
-                value={drawSize}
-                onChange={e => setDrawSize(Number(e.target.value))}
-                className="w-full"
-              />
-              <div className="text-xs text-center">{drawSize}px</div>
-            </div>
-            <div className="mb-2 w-full">
-              <div className="text-xs mb-1">Opacity</div>
-              <input
-                type="range"
-                min={0.1}
-                max={1}
-                step={0.01}
-                value={drawOpacity}
-                onChange={e => setDrawOpacity(Number(e.target.value))}
-                className="w-full"
-              />
-              <div className="text-xs text-center">{Math.round(drawOpacity * 100)}%</div>
-            </div>
-            <div className="flex gap-2 mb-2">
-              <button
-                onClick={handleDrawUndo}
-                disabled={drawLines.length === 0}
-                title="Undo"
-                className="p-2 rounded-full bg-slate-100 hover:bg-blue-100 border border-slate-300 disabled:opacity-50 transition"
-                style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
-              >
-                <RotateCcw size={20} className="text-blue-600" />
-              </button>
-              <button
-                onClick={handleDrawRedo}
-                disabled={drawHistory.length === 0}
-                title="Redo"
-                className="p-2 rounded-full bg-slate-100 hover:bg-green-100 border border-slate-300 disabled:opacity-50 transition"
-                style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
-              >
-                <RotateCw size={20} className="text-green-600" />
-              </button>
-              <button
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to clear your drawing? This cannot be undone.')) {
-                    handleDrawClear();
-                  }
-                }}
-                title="Clear"
-                className="p-2 rounded-full bg-slate-100 hover:bg-red-100 border border-slate-300 transition"
-                style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
-              >
-                <Trash2 size={20} className="text-red-600" />
-              </button>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button onClick={handleDrawSave} className="px-3 py-1 rounded bg-blue-500 text-white font-bold">Save</button>
-              <button onClick={() => setDrawingMode(false)} className="px-3 py-1 rounded bg-slate-200">Close</button>
-            </div>
-          </GlassCard>
+              {!drawingCardMinimized && <>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    className={`p-2 rounded-full border ${drawTool === 'pen' ? 'bg-blue-200 border-blue-500' : 'bg-white border-slate-300'}`}
+                    onClick={() => setDrawTool('pen')}
+                    title="Pen"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    className={`p-2 rounded-full border ${drawTool === 'eraser' ? 'bg-blue-200 border-blue-500' : 'bg-white border-slate-300'}`}
+                    onClick={() => setDrawTool('eraser')}
+                    title="Eraser"
+                  >
+                    🧽
+                  </button>
+                </div>
+                <div className="mb-2 w-full">
+                  <div className="text-xs mb-1">Color</div>
+                  <div className="flex gap-2 items-center justify-center">
+                    {quickColors.map((color, idx) => (
+                      <div key={idx} className="flex flex-col items-center">
+                        <button
+                          type="button"
+                          className={`w-8 h-8 rounded-full border-2 ${drawColor === color ? 'border-blue-500 ring-2 ring-blue-300' : 'border-slate-300'}`}
+                          style={{ background: color }}
+                          onClick={() => setDrawColor(color)}
+                          disabled={drawTool === 'eraser'}
+                          title={idx === 0 ? 'Current Color' : `Quick Color ${idx}`}
+                        />
+                        <input
+                          type="color"
+                          value={color}
+                          onChange={e => idx === 0 ? setDrawColor(e.target.value) : setQuickColor(idx, e.target.value)}
+                          className="w-6 h-6 mt-1 border border-slate-300 rounded cursor-pointer"
+                          style={{ padding: 0 }}
+                          title={idx === 0 ? 'Set Current Color' : `Set Quick Color ${idx}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="mb-2 w-full">
+                  <div className="text-xs mb-1">Brush Size</div>
+                  <input
+                    type="range"
+                    min={2}
+                    max={32}
+                    step={2}
+                    value={drawSize}
+                    onChange={e => setDrawSize(Number(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-center">{drawSize}px</div>
+                </div>
+                <div className="mb-2 w-full">
+                  <div className="text-xs mb-1">Opacity</div>
+                  <input
+                    type="range"
+                    min={0.1}
+                    max={1}
+                    step={0.01}
+                    value={drawOpacity}
+                    onChange={e => setDrawOpacity(Number(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-center">{Math.round(drawOpacity * 100)}%</div>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={handleDrawUndo}
+                    disabled={drawLines.length === 0}
+                    title="Undo"
+                    className="p-2 rounded-full bg-slate-100 hover:bg-blue-100 border border-slate-300 disabled:opacity-50 transition"
+                    style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+                  >
+                    <RotateCcw size={20} className="text-blue-600" />
+                  </button>
+                  <button
+                    onClick={handleDrawRedo}
+                    disabled={drawHistory.length === 0}
+                    title="Redo"
+                    className="p-2 rounded-full bg-slate-100 hover:bg-green-100 border border-slate-300 disabled:opacity-50 transition"
+                    style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+                  >
+                    <RotateCw size={20} className="text-green-600" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to clear your drawing? This cannot be undone.')) {
+                        handleDrawClear();
+                      }
+                    }}
+                    title="Clear"
+                    className="p-2 rounded-full bg-slate-100 hover:bg-red-100 border border-slate-300 transition"
+                    style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
+                  >
+                    <Trash2 size={20} className="text-red-600" />
+                  </button>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button onClick={handleDrawSave} className="px-3 py-1 rounded bg-blue-500 text-white font-bold">Save</button>
+                  <button onClick={() => setDrawingMode(false)} className="px-3 py-1 rounded bg-slate-200">Close</button>
+                </div>
+              </>}
+            </GlassCard>
+          </div>
         )}
         <div>
           <GlassCard className="mb-6 flex flex-wrap gap-4 items-center">
@@ -1042,6 +1110,12 @@ const JournalPage: React.FC = () => {
                     style={{ backgroundColor: '#FB923C' }}
                     title="Orange Highlight"
                   />
+                  <button
+                    onClick={() => applyHighlight('#F472B6')}
+                    className="w-6 h-6 rounded border border-slate-300"
+                    style={{ backgroundColor: '#F472B6' }}
+                    title="Pink Highlight"
+                  />
                 </div>
                 
                 <div className="w-px h-6 bg-slate-300 mx-2" />
@@ -1113,7 +1187,10 @@ const JournalPage: React.FC = () => {
                 <div className="ml-4 flex items-center rounded overflow-hidden border border-slate-300">
                   <button
                     className={`px-3 py-1 text-sm font-medium focus:outline-none transition-colors ${!drawingMode ? 'bg-blue-500 text-white' : 'bg-white text-slate-900'}`}
-                    onClick={() => setDrawingMode(false)}
+                    onClick={() => {
+                      setDrawingMode(false);
+                      localStorage.setItem('journal-last-mode', 'writing');
+                    }}
                     type="button"
                     style={{ minWidth: 70 }}
                   >
@@ -1121,7 +1198,10 @@ const JournalPage: React.FC = () => {
                   </button>
                   <button
                     className={`px-3 py-1 text-sm font-medium focus:outline-none transition-colors ${drawingMode ? 'bg-blue-500 text-white' : 'bg-white text-slate-900'}`}
-                    onClick={() => setDrawingMode(true)}
+                    onClick={() => {
+                      setDrawingMode(true);
+                      localStorage.setItem('journal-last-mode', 'drawing');
+                    }}
                     type="button"
                     style={{ minWidth: 70 }}
                   >

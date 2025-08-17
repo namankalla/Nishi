@@ -1,13 +1,13 @@
 import React from 'react';
 
-interface ModalProps {
+interface GardenModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
   className?: string;
 }
 
-interface ConfirmationModalProps {
+interface GardenConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -18,7 +18,7 @@ interface ConfirmationModalProps {
   confirmVariant?: 'danger' | 'primary' | 'secondary';
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className = '' }) => {
+const GardenModal: React.FC<GardenModalProps> = ({ isOpen, onClose, children, className = '' }) => {
   if (!isOpen) return null;
 
   return (
@@ -37,7 +37,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, className = ''
   );
 };
 
-export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+export const GardenConfirmationModal: React.FC<GardenConfirmationModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
@@ -61,7 +61,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <GardenModal isOpen={isOpen} onClose={onClose}>
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -100,8 +100,8 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
           </button>
         </div>
       </div>
-    </Modal>
+    </GardenModal>
   );
 };
 
-export default Modal;
+export default GardenModal;
