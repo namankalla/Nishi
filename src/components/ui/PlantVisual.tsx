@@ -137,7 +137,7 @@ const PlantVisual: React.FC<PlantVisualProps> = ({
             width: '100%',
             height: '100%',
             objectFit: 'contain',
-            filter: dead ? 'grayscale(0%) brightness(3)' : 'contrast(1.05) saturate(2) brightness(1)'
+            filter: dead ? 'grayscale(98%) brightness(3)' : 'contrast(1.05) saturate(2) brightness(1)'
           }}
           muted
           playsInline

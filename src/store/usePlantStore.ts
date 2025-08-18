@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { format, differenceInCalendarDays, addDays } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 import { useUserStore } from './useUserStore';
 
 export interface Plant {
@@ -120,6 +120,11 @@ export const usePlantStore = create<PlantState>((set, get) => ({
 
   getStatus: (plant: Plant, now: Date = new Date()) => {
     if (!plant) return { missedDays: 0, canWater: false, isDead: false };
+    // Transplanted plants are considered fully grown and require no watering.
+    // Hide all watering logic by reporting zero missed days and no watering capability.
+    if (plant.isTransplanted) {
+      return { missedDays: 0, canWater: false, isDead: false };
+    }
     const last = new Date(plant.lastWateredOn);
     const missedDays = Math.max(0, differenceInCalendarDays(now, last));
     const wateredToday = format(now, 'yyyy-MM-dd') === plant.lastWateredOn;
@@ -144,6 +149,8 @@ export const usePlantStore = create<PlantState>((set, get) => ({
   recoverMissedDays: async (plantId: string) => {
     const plant = get().currentPlant;
     if (!plant) throw new Error('No plant');
+    // No recovery for transplanted plants
+    if (plant.isTransplanted) return;
     const { missedDays, isDead } = get().getStatus(plant);
     if (isDead) throw new Error('Plant is dead');
     if (missedDays <= 0) return;
@@ -161,7 +168,7 @@ export const usePlantStore = create<PlantState>((set, get) => ({
       // keep current count for that day index
       waterCount: plant.waterCountDay === dayIndex ? (plant.waterCount || 0) : 0
     };
-    await updateDoc(doc(db, 'plants', plantId), updated);
+    await setDoc(doc(db, 'plants', plantId), updated, { merge: false });
     set(state => ({
       currentPlant: updated,
       plants: state.plants.map(p => p.id === plantId ? updated : p)
@@ -171,11 +178,13 @@ export const usePlantStore = create<PlantState>((set, get) => ({
   waterToday: async (plantId: string, dayIndexOverride?: number) => {
     const plant = get().currentPlant;
     if (!plant) throw new Error('No plant');
+    // Transplanted plants do not require watering; skip silently.
+    if (plant.isTransplanted) return;
     const now = new Date();
     const today = todayStr(now);
 
     const missedDays = Math.max(0, differenceInCalendarDays(now, new Date(plant.lastWateredOn)));
-    const wateredToday = today === plant.lastWateredOn;
+    // const wateredToday = today === plant.lastWateredOn; // not used anymore
     const recoveredToday = plant.recoveredOn === today;
 
     if (plant.isDead || missedDays >= 10) throw new Error('Plant is dead');
@@ -201,7 +210,7 @@ export const usePlantStore = create<PlantState>((set, get) => ({
       waterCountDay: dayIndex,
       waterCount: countToday + 1
     };
-    await updateDoc(doc(db, 'plants', plantId), updated);
+    await setDoc(doc(db, 'plants', plantId), updated, { merge: false });
     set(state => ({
       currentPlant: updated,
       plants: state.plants.map(p => p.id === plantId ? updated : p)
@@ -226,7 +235,7 @@ export const usePlantStore = create<PlantState>((set, get) => ({
       waterCountDay: 1,
       waterCount: 0
     };
-    await updateDoc(doc(db, 'plants', plantId), updated);
+    await setDoc(doc(db, 'plants', plantId), updated, { merge: false });
     set(state => ({
       currentPlant: updated,
       plants: state.plants.map(p => p.id === plantId ? updated : p)
@@ -241,7 +250,7 @@ export const usePlantStore = create<PlantState>((set, get) => ({
       ...plant,
       name: name.trim() || 'My Plant'
     };
-    await updateDoc(doc(db, 'plants', plantId), updated);
+    await setDoc(doc(db, 'plants', plantId), updated, { merge: false });
     set(state => ({
       currentPlant: updated,
       plants: state.plants.map(p => p.id === plantId ? updated : p)
